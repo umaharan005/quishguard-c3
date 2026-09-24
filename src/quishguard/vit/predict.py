@@ -21,6 +21,7 @@ class VisualScorer:
         self.model = load_visual(models_dir / f"visual_{arch}.pt", self.device)
         c = joblib.load(models_dir / f"visual_{arch}_calibrator.joblib")
         self.cal, self.thr = c["calibrator"], c["threshold_error"]
+        self.heat_lo, self.heat_hi = c.get("heat_lo"), c.get("heat_hi")
 
     @torch.no_grad()
     def score(self, img: ImageLike) -> dict:
@@ -37,3 +38,11 @@ class VisualScorer:
             "heatmap": hm,                      # 14 x 14 map (for the alert image)
             "worst_patch_rowcol": [int(worst[0]), int(worst[1])],
         }
+
+    def heatmap_image(self, img: ImageLike, result: dict | None = None):
+        """BGR image with the unusual areas coloured (for the alert / dashboard)."""
+        from quishguard.vit.heatmap import overlay
+        r = result or self.score(img)
+        lo = self.heat_lo if self.heat_lo is not None else float(np.percentile(r["heatmap"], 50))
+        hi = self.heat_hi if self.heat_hi is not None else float(r["heatmap"].max()) + 1e-6
+        return overlay(prepare(img), r["heatmap"], lo, hi)

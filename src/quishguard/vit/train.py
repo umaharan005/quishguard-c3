@@ -112,30 +112,6 @@ def metrics_at(y, s, thr):
             "fpr": fp / max(fp + tn, 1), "n": int(len(y))}
 
 
-def save_examples(path: Path, tamper_dir: Path, man: pd.DataFrame, maps: np.ndarray, per=3):
-    import cv2
-    tiles = []
-    for kind in ["normal", "sticker", "logo", "module_flip", "warp", "double_print"]:
-        idx = man.index[man["attack"] == kind][:per]
-        row = []
-        for i in idx:
-            if i >= len(maps):
-                continue
-            img = (prepare(tamper_dir / man.loc[i, "file"]) * 255).astype(np.uint8)
-            hm = cv2.resize(maps[i] / (maps[: len(man)].max() + 1e-9), (224, 224), interpolation=cv2.INTER_CUBIC)
-            hm = cv2.applyColorMap(np.clip(hm * 255 * 3, 0, 255).astype(np.uint8), cv2.COLORMAP_JET)
-            over = cv2.addWeighted(cv2.cvtColor(img, cv2.COLOR_GRAY2BGR), 0.55, hm, 0.45, 0)
-            row.append(np.hstack([cv2.cvtColor(img, cv2.COLOR_GRAY2BGR), over]))
-        if row:
-            r = np.hstack(row)
-            r = cv2.copyMakeBorder(r, 22, 4, 0, 0, cv2.BORDER_CONSTANT, value=(255, 255, 255))
-            cv2.putText(r, kind, (6, 16), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1, cv2.LINE_AA)
-            tiles.append(r)
-    w = max(t.shape[1] for t in tiles)
-    tiles = [cv2.copyMakeBorder(t, 0, 0, 0, w - t.shape[1], cv2.BORDER_CONSTANT, value=(255, 255, 255)) for t in tiles]
-    cv2.imwrite(str(path), np.vstack(tiles))
-
-
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--arch", choices=["patchcore", "vit", "cnn"], default="patchcore",
@@ -231,10 +207,11 @@ def main(argv=None):
     for split in ("val", "test"):
         m = man[man["split"] == split].reset_index(drop=True)
         dl = DataLoader(Files([args.tamper_dir / f for f in m["file"]]), batch_size=args.batch, num_workers=args.workers)
+        s, mp = score_loader(model, dl, device, keep_maps=len(m))
         if split == "test":
-            s, maps = score_loader(model, dl, device, keep_maps=len(m))
+            maps = mp
         else:
-            s = score_loader(model, dl, device)
+            val_maps = mp
         m["error"] = s
         out[split] = m
     va, te = out["val"], out["test"]
@@ -285,10 +262,16 @@ def main(argv=None):
 
     # save
     import joblib
-    joblib.dump({"calibrator": cal, "threshold_error": thr, "arch": args.arch}, args.out / f"visual_{args.arch}_calibrator.joblib")
+    from quishguard.vit.heatmap import heat_scale, render_grid
+    heat_lo, heat_hi = heat_scale(val_maps[(va["attack"] == "normal").values], val_maps[(va["attack"] != "normal").values])
+    joblib.dump({"calibrator": cal, "threshold_error": thr, "arch": args.arch, "heat_lo": heat_lo, "heat_hi": heat_hi},
+                args.out / f"visual_{args.arch}_calibrator.joblib")
     te.drop(columns=["params"]).to_csv(args.reports / "test_scores.csv", index=False)
     (args.reports / "metrics.json").write_text(json.dumps(res, indent=2, default=float))
-    save_examples(args.reports / "heatmaps.png", args.tamper_dir, te, maps)
+    ex = te.groupby("attack", group_keys=False).head(3)
+    render_grid(args.reports / "heatmaps.png",
+                [(a, prepare(args.tamper_dir / f), maps[i]) for i, a, f in zip(ex.index, ex["attack"], ex["file"])],
+                heat_lo, heat_hi)
     try:
         import matplotlib
         matplotlib.use("Agg")
