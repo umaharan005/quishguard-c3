@@ -219,8 +219,8 @@ __marimo__/
 
 # --- quishguard-c3 ---
 # Data and models are too large for GitHub (keep them on D:\uma or Google Drive)
-data/
-models/
+/data/
+/models/
 *.zip
 *.pt
 *.pth
