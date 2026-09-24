@@ -58,7 +58,12 @@ def add_quiet_zone(gray: np.ndarray, pad: int = PAD) -> np.ndarray:
 
 def _try_opencv(gray: np.ndarray):
     det = cv2.QRCodeDetector()
-    text, pts, _ = det.detectAndDecode(gray)
+    try:
+        text, pts, _ = det.detectAndDecode(gray)
+    except cv2.error:
+        # Some OpenCV builds (e.g. 5.0 on Colab) raise an internal assertion on
+        # damaged/tampered codes instead of returning "not found". Treat as unreadable.
+        return None, None
     if text:
         return text, (pts.reshape(-1, 2) if pts is not None else None)
     return None, None
@@ -67,7 +72,11 @@ def _try_opencv(gray: np.ndarray):
 def _try_pyzbar(gray: np.ndarray):
     if _pyzbar is None:
         return None, None
-    for r in _pyzbar.decode(gray, symbols=[_pyzbar.ZBarSymbol.QRCODE]):
+    try:
+        results = _pyzbar.decode(gray, symbols=[_pyzbar.ZBarSymbol.QRCODE])
+    except Exception:
+        return None, None
+    for r in results:
         text = r.data.decode("utf-8", errors="replace")
         pts = np.array([(p.x, p.y) for p in r.polygon], dtype=np.float32)
         return text, (pts if len(pts) == 4 else None)

@@ -61,3 +61,12 @@ def test_payload_types():
 def test_blank_image_fails_cleanly():
     r = decode(np.full((200, 200), 255, np.uint8))
     assert not r.ok and r.payload_type == "none"
+
+
+def test_opencv_internal_error_is_treated_as_unreadable(monkeypatch):
+    class Boom:
+        def detectAndDecode(self, *_):
+            raise cv2.error("simulated OpenCV 5.0 assertion")
+    monkeypatch.setattr(cv2, "QRCodeDetector", lambda: Boom())
+    r = decode(np.full((120, 120), 255, np.uint8))
+    assert not r.ok
