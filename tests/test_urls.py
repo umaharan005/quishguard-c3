@@ -26,3 +26,9 @@ def test_bad_ipv6_does_not_crash():
 def test_split_is_stable_per_domain():
     assert split_of("example.com") == split_of("example.com")
     assert split_of("example.com") in {"train", "val", "test"}
+
+
+def test_mask_tld():
+    from quishguard.data.urls import mask_tld
+    assert mask_tld("shop.example.lk/menu") == "shop.example.<tld>/menu"
+    assert mask_tld("87.1.2.3:80/i") == "87.1.2.3:80/i"

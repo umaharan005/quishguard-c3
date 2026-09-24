@@ -7,6 +7,7 @@ import joblib
 import numpy as np
 
 from quishguard import config
+from quishguard.data.urls import mask_tld, normalize_url
 from quishguard.url_model.features import UrlFeaturizer
 
 READABLE = {
@@ -27,6 +28,7 @@ READABLE = {
     "max_token_len": "longest word in URL", "n_tokens": "number of URL parts",
     "max_char_run": "repeated characters", "host_vowel_ratio": "vowel share in host (gibberish check)",
     "brand_in_subdomain": "brand name in subdomain", "tld_risk": "TLD often used for phishing",
+    "char_ngram_prob": "character patterns look like known phishing URLs",
 }
 
 
@@ -38,6 +40,7 @@ class UrlScorer:
         self.cal = b["calibrator"]
         self.thresholds = b["thresholds"]
         self.names = b["feature_names"]
+        self.char = b.get("char_model")
         self._booster = None
         try:
             import xgboost as xgb
@@ -49,6 +52,13 @@ class UrlScorer:
 
     def score(self, url: str, explain: bool = True, top_k: int = 5) -> dict:
         X = self.feat.transform(UrlFeaturizer.raw_frame([url]))
+        if self.char is not None:
+            text = normalize_url(url)
+            if self.char.get("mask_tld"):
+                text = mask_tld(text)
+            t = self.char["vectorizer"].transform([text])
+            X["char_ngram_prob"] = self.char["lr"].predict_proba(t)[:, 1].astype(np.float32)
+        X = X[self.names]
         raw_p = float(self.model.predict_proba(X)[0, 1])
         p = float(self.cal.predict([raw_p])[0])
         out = {"url_score": round(100 * p, 2), "probability": p,

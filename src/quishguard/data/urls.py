@@ -92,3 +92,21 @@ def registered_domain(host: str) -> str:
     if len(parts) >= 3 and ".".join(parts[-2:]) in _TWO_PART_SUFFIXES:
         return ".".join(parts[-3:])
     return ".".join(parts[-2:])
+
+
+def mask_tld(url_norm: str) -> str:
+    """"shop.example.lk/menu" -> "shop.example.<tld>/menu".
+
+    Used for the character n-gram model so it learns URL *shape*, not country
+    endings. TLD risk is handled separately (and smoothed) by tld_risk; the
+    dataset has very few Sri Lankan (.lk) URLs and most of them are malicious.
+    """
+    host = get_host(url_norm)
+    if not host or is_ip(host) or "." not in host:
+        return url_norm
+    tld = host.rsplit(".", 1)[1]
+    i = url_norm.lower().find(host)
+    if i < 0:
+        return url_norm
+    end = i + len(host)
+    return url_norm[: end - len(tld)] + "<tld>" + url_norm[end:]

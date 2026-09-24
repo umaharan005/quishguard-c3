@@ -141,6 +141,13 @@ def main(argv=None):
     ap.add_argument("--cv-max-rows", type=int, default=200_000, help="rows used for CV (speed)")
     ap.add_argument("--baseline-max-rows", type=int, default=200_000)
     ap.add_argument("--gpu", action="store_true", help="XGBoost on CUDA (Colab T4)")
+    ap.add_argument("--tranco-top", type=int, default=0,
+                    help="add the top-N Tranco domains as benign homepage URLs (fixes the homepage bias)")
+    ap.add_argument("--tranco-file", type=Path, default=None, help="local/cached Tranco csv or zip")
+    ap.add_argument("--tld-smoothing", type=float, default=300.0,
+                    help="pull rare TLDs toward the average risk (country TLDs are rare in the data)")
+    ap.add_argument("--stack-char", action="store_true",
+                    help="add an out-of-fold char n-gram score as an extra XGBoost feature")
     args = ap.parse_args(argv)
     args.reports.mkdir(parents=True, exist_ok=True)
     args.model_out.parent.mkdir(parents=True, exist_ok=True)
@@ -150,6 +157,14 @@ def main(argv=None):
 
     t0 = time.time()
     df = pd.read_csv(args.data, dtype={"url": str, "url_norm": str, "domain": str}, keep_default_na=False)
+    if args.tranco_top:
+        from quishguard.data.tranco import tranco_rows
+        mal_domains = set(df.loc[df["label"] == 1, "domain"])
+        extra = tranco_rows(args.tranco_top, mal_domains, args.tranco_file)
+        extra = extra[~extra["url_norm"].isin(set(df["url_norm"]))]
+        results["tranco_rows_added"] = {s: int((extra["split"] == s).sum()) for s in ("train", "val", "test")}
+        print("Added Tranco benign homepages:", results["tranco_rows_added"])
+        df = pd.concat([df, extra[df.columns.intersection(extra.columns)]], ignore_index=True)
     splits = {s: df[df["split"] == s] for s in ("train", "val", "test")}
     if args.sample:
         splits = {s: g.sample(n=min(args.sample, len(g)), random_state=rng) for s, g in splits.items()}
@@ -174,7 +189,7 @@ def main(argv=None):
     ts = time.time()
     raw = {s: UrlFeaturizer.raw_frame(g["url_norm"].values) for s, g in splits.items()}
     T["feature_extraction_s"] = time.time() - ts
-    feat = UrlFeaturizer().fit(raw["train"], splits["train"]["label"].values)
+    feat = UrlFeaturizer(smoothing=args.tld_smoothing).fit(raw["train"], splits["train"]["label"].values)
     X = {s: feat.transform(r) for s, r in raw.items()}
     y = {s: g["label"].values for s, g in splits.items()}
     groups_train = splits["train"]["domain"].values
@@ -209,6 +224,29 @@ def main(argv=None):
     lr_txt = LogisticRegression(max_iter=2000, C=4.0, solver="liblinear")
     lr_txt.fit(Xt_tr, y["train"][bi])
     probs_test["Char n-gram LR"] = lr_txt.predict_proba(tf.transform(splits["test"]["url_norm"].values))[:, 1]
+
+    # ---- optional stacking: char n-gram score becomes one more XGBoost feature
+    char_model = None
+    if args.stack_char:
+        print("Stacking: out-of-fold char n-gram scores on train (5 folds, grouped by domain) ...")
+        ts = time.time()
+        tf_s = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=3, max_features=300_000,
+                               sublinear_tf=True, lowercase=True, dtype=np.float32)
+        from quishguard.data.urls import mask_tld
+        masked = {k: g["url_norm"].map(mask_tld).values for k, g in splits.items()}
+        T_tr = tf_s.fit_transform(masked["train"])
+        oof = np.zeros(len(y["train"]), dtype=np.float32)
+        for a, b in StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=rng).split(T_tr, y["train"], groups_train):
+            m_ = LogisticRegression(max_iter=2000, C=4.0, solver="liblinear").fit(T_tr[a], y["train"][a])
+            oof[b] = m_.predict_proba(T_tr[b])[:, 1]
+        lr_s = LogisticRegression(max_iter=2000, C=4.0, solver="liblinear").fit(T_tr, y["train"])
+        X["train"]["char_ngram_prob"] = oof
+        for s in ("val", "test"):
+            X[s]["char_ngram_prob"] = lr_s.predict_proba(tf_s.transform(masked[s]))[:, 1].astype(np.float32)
+        char_model = {"vectorizer": tf_s, "lr": lr_s, "mask_tld": True}
+        T["stacking_s"] = time.time() - ts
+    feature_names = list(X["train"].columns)
+    results["stacked_char_ngram"] = bool(args.stack_char)
 
     # ---- cross-validation (grouped by domain)
     print(f"{args.cv_folds}-fold StratifiedGroupKFold CV on train ...")
@@ -258,7 +296,7 @@ def main(argv=None):
 
     # ---- explanations
     importances = pd.Series(getattr(model, "feature_importances_", np.zeros(X["train"].shape[1])),
-                            index=feat.feature_names_)
+                            index=feature_names)
     importances.sort_values(ascending=False).to_csv(args.reports / "feature_importance.csv")
     shap_ok = False
     try:
@@ -280,9 +318,9 @@ def main(argv=None):
     save_plots(args.reports, y["test"], probs_test, cm, importances, shap_ok)
 
     # ---- bundle + latency
-    bundle = {"featurizer": feat, "model": model, "calibrator": iso,
-              "thresholds": results["thresholds_from_val"], "feature_names": feat.feature_names_,
-              "version": "url-v1", "trained_rows": int(len(y["train"]))}
+    bundle = {"featurizer": feat, "model": model, "calibrator": iso, "char_model": char_model,
+              "thresholds": results["thresholds_from_val"], "feature_names": feature_names,
+              "version": "url-v1-stacked" if char_model else "url-v1", "trained_rows": int(len(y["train"]))}
     joblib.dump(bundle, args.model_out)
 
     from quishguard.url_model.predict import UrlScorer
