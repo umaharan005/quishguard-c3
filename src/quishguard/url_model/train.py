@@ -76,17 +76,28 @@ def threshold_for_fpr(y, prob, target_fpr) -> float:
     return float(thr[ok[-1]]) if len(ok) else 1.0
 
 
+PRESETS = {
+    # v1 settings: deeper trees, fits training data more closely
+    "flexible": dict(learning_rate=0.08, max_depth=8, subsample=0.9, colsample_bytree=0.8,
+                     min_child_weight=2, reg_lambda=1.0, gamma=0.0),
+    # default: shallower trees, bigger leaves, L1/L2 penalties -> smaller train-test gap
+    "regularized": dict(learning_rate=0.05, max_depth=5, subsample=0.8, colsample_bytree=0.7,
+                        min_child_weight=20, reg_lambda=10.0, reg_alpha=1.0, gamma=1.0),
+}
+PRESET = "regularized"
+
+
 def make_xgb(n_estimators=800, **kw):
-    params = dict(n_estimators=n_estimators, learning_rate=0.08, max_depth=8,
-                  subsample=0.9, colsample_bytree=0.8, min_child_weight=2,
-                  reg_lambda=1.0, tree_method="hist", eval_metric="logloss",
-                  n_jobs=-1, random_state=config.SEED)
+    params = dict(n_estimators=n_estimators, tree_method="hist", eval_metric="logloss",
+                  n_jobs=-1, random_state=config.SEED, **PRESETS[PRESET])
     params.update(kw)
     if xgb is not None:
         return xgb.XGBClassifier(**params)
     from sklearn.ensemble import HistGradientBoostingClassifier  # fallback
-    return HistGradientBoostingClassifier(max_iter=min(n_estimators, 300), learning_rate=0.1,
-                                          max_leaf_nodes=63, random_state=config.SEED)
+    pr = PRESETS[PRESET]  # same idea as the XGBoost preset, for machines without xgboost
+    return HistGradientBoostingClassifier(max_iter=min(n_estimators, 300), learning_rate=pr["learning_rate"] * 1.5,
+                                          max_depth=pr["max_depth"], min_samples_leaf=max(20, pr["min_child_weight"] * 5),
+                                          l2_regularization=pr["reg_lambda"], random_state=config.SEED)
 
 
 def fit_xgb(model, Xtr, ytr, Xva, yva, weights=None):
@@ -142,6 +153,8 @@ def main(argv=None):
     ap.add_argument("--cv-max-rows", type=int, default=200_000, help="rows used for CV (speed)")
     ap.add_argument("--baseline-max-rows", type=int, default=200_000)
     ap.add_argument("--gpu", action="store_true", help="XGBoost on CUDA (Colab T4)")
+    ap.add_argument("--preset", choices=list(PRESETS), default="regularized",
+                    help="XGBoost settings: 'regularized' (default, smaller train-test gap) or 'flexible' (v1)")
     ap.add_argument("--tranco-top", type=int, default=0,
                     help="add the top-N Tranco domains as benign homepage URLs (fixes the homepage bias)")
     ap.add_argument("--tranco-file", type=Path, default=None, help="local/cached Tranco csv or zip")
@@ -150,11 +163,14 @@ def main(argv=None):
     ap.add_argument("--stack-char", action="store_true",
                     help="add an out-of-fold char n-gram score as an extra XGBoost feature")
     args = ap.parse_args(argv)
+    global PRESET
+    PRESET = args.preset
     args.reports.mkdir(parents=True, exist_ok=True)
     args.model_out.parent.mkdir(parents=True, exist_ok=True)
     rng = config.SEED
     T = {}
-    results: dict = {"xgboost_available": xgb is not None}
+    results: dict = {"xgboost_available": xgb is not None, "xgb_preset": args.preset,
+                     "xgb_params": PRESETS[args.preset]}
 
     t0 = time.time()
     df = pd.read_csv(args.data, dtype={"url": str, "url_norm": str, "domain": str}, keep_default_na=False)
