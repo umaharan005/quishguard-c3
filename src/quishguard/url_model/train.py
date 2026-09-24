@@ -92,7 +92,8 @@ def make_xgb(n_estimators=800, **kw):
 def fit_xgb(model, Xtr, ytr, Xva, yva, weights=None):
     if xgb is not None and isinstance(model, xgb.XGBClassifier):
         model.set_params(early_stopping_rounds=50)
-        model.fit(Xtr, ytr, sample_weight=weights, eval_set=[(Xva, yva)], verbose=False)
+        # early stopping uses the LAST eval set (val); train is included only to draw the learning curve
+        model.fit(Xtr, ytr, sample_weight=weights, eval_set=[(Xtr, ytr), (Xva, yva)], verbose=False)
     else:
         model.fit(Xtr, ytr, sample_weight=weights)
     return model
@@ -284,6 +285,35 @@ def main(argv=None):
     thr_fpr3 = threshold_for_fpr(y["val"], p_val, 0.03)
     thr_fpr1 = threshold_for_fpr(y["val"], p_val, 0.01)
     results["thresholds_from_val"] = {"default": 0.5, "fpr_3pct": thr_fpr3, "fpr_1pct": thr_fpr1}
+
+    # ---- overfitting check: same model scored on train, val and test
+    p_train = iso.predict(model.predict_proba(X["train"])[:, 1])
+    of = {"train": metrics(y["train"], p_train), "val": metrics(y["val"], p_val), "test": metrics(y["test"], p_test)}
+    results["overfit_check"] = {
+        k: {m: round(float(v[m]), 4) for m in ("accuracy", "f1", "roc_auc", "fpr")} for k, v in of.items()}
+    results["overfit_check"]["gap_train_minus_test_f1"] = round(float(of["train"]["f1"] - of["test"]["f1"]), 4)
+    results["overfit_check"]["gap_train_minus_test_auc"] = round(float(of["train"]["roc_auc"] - of["test"]["roc_auc"]), 4)
+    results["class_balance"] = {
+        s: {"benign_pct": round(100 * float((y[s] == 0).mean()), 1), "malicious_pct": round(100 * float((y[s] == 1).mean()), 1)}
+        for s in ("train", "val", "test")}
+    print("\nOVERFIT CHECK", json.dumps(results["overfit_check"], indent=1))
+    print("CLASS BALANCE", results["class_balance"])
+    if xgb is not None and hasattr(model, "evals_result"):
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            ev = model.evals_result()
+            fig, ax = plt.subplots(figsize=(5.5, 4))
+            ax.plot(ev["validation_0"]["logloss"], label="train")
+            ax.plot(ev["validation_1"]["logloss"], label="validation (unseen domains)")
+            bi_ = getattr(model, "best_iteration", None)
+            if bi_ is not None:
+                ax.axvline(bi_, color="k", ls="--", lw=0.8, label=f"early stop @ {bi_}")
+            ax.set_xlabel("Boosting round"); ax.set_ylabel("Log loss"); ax.set_title("XGBoost learning curve")
+            ax.legend(); fig.tight_layout(); fig.savefig(args.reports / "learning_curve.png", dpi=150); plt.close(fig)
+        except Exception as e:
+            print("learning curve skipped:", e)
 
     for name, p in probs_test.items():
         results["test"][name] = metrics(y["test"], p)
