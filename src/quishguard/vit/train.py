@@ -66,14 +66,34 @@ class Files(Dataset):
 
 
 @torch.no_grad()
+@torch.no_grad()
+def patch_map(model, x):
+    """B x 14 x 14 anomaly map for either model type."""
+    if hasattr(model, "patch_scores"):              # PatchCore: distance to nearest normal patch
+        return model.patch_scores(x)
+    with torch.autocast(device_type=x.device.type, enabled=x.device.type == "cuda"):
+        rec = model(x)                              # autoencoder: reconstruction error
+    return patch_errors(x.float(), rec.float())
+
+
+def load_visual(ckpt_path, device):
+    ck = torch.load(ckpt_path, map_location=device)
+    if ck["arch"] == "patchcore":
+        from quishguard.vit.patchcore import PatchCoreViT
+        m = PatchCoreViT(pretrained=False)
+        m.memory = torch.empty_like(ck["state_dict"]["memory"])
+    else:
+        m = build(ck["arch"], pretrained=False)
+    m.load_state_dict(ck["state_dict"])
+    return m.to(device).eval()
+
+
 def score_loader(model, loader, device, keep_maps: int = 0):
     model.eval()
     scores, maps = [], []
     for x in loader:
         x = x.to(device, non_blocking=True)
-        with torch.autocast(device_type=device.type, enabled=device.type == "cuda"):
-            rec = model(x)
-        pe = patch_errors(x.float(), rec.float())
+        pe = patch_map(model, x)
         scores.append(anomaly_score(pe).cpu())
         if keep_maps and sum(m.shape[0] for m in maps) < keep_maps:
             maps.append(pe.cpu())
@@ -118,7 +138,9 @@ def save_examples(path: Path, tamper_dir: Path, man: pd.DataFrame, maps: np.ndar
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--arch", choices=["vit", "cnn"], default="vit")
+    ap.add_argument("--arch", choices=["patchcore", "vit", "cnn"], default="patchcore",
+                    help="patchcore = ViT features + nearest-normal-patch distance (main); vit/cnn = autoencoders")
+    ap.add_argument("--fit-images", type=int, default=1500, help="PatchCore: normal images in the memory bank")
     ap.add_argument("--raw-dir", type=Path, required=True, help="folder with QR_All_benign/ and QR_All_Malicious/ (subset)")
     ap.add_argument("--subset", type=Path, required=True, help="image_subset.csv")
     ap.add_argument("--tamper-dir", type=Path, required=True, help="unzipped tamper set (has manifest.csv)")
@@ -152,39 +174,56 @@ def main(argv=None):
     dl_va = DataLoader(CleanQR(va_clean, args.raw_dir, augment=False, seed=1), batch_size=args.batch,
                        num_workers=args.workers)
 
-    model = build(args.arch).to(device)
-    n_params = sum(p.numel() for p in model.parameters())
-    res["parameters"] = int(n_params)
-    print(f"{args.arch} autoencoder: {n_params/1e6:.2f} M parameters, {len(tr):,} training images")
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.05)
-    steps = args.epochs * len(dl_tr)
-    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=args.lr, total_steps=max(steps, 1), pct_start=0.1)
-    scaler = torch.amp.GradScaler("cuda", enabled=device.type == "cuda")
-
-    history, best, ckpt = [], float("inf"), args.out / f"visual_{args.arch}.pt"
+    ckpt = args.out / f"visual_{args.arch}.pt"
     t0 = time.time()
-    for ep in range(1, args.epochs + 1):
-        model.train(); tot = n = 0
-        for x in dl_tr:
-            x = x.to(device, non_blocking=True)
-            with torch.autocast(device_type=device.type, enabled=device.type == "cuda"):
-                rec = model(x)
-                loss = torch.nn.functional.mse_loss(rec.float(), x)
-            opt.zero_grad(set_to_none=True)
-            scaler.scale(loss).backward()
-            scaler.step(opt); scaler.update(); sched.step()
-            tot += loss.item() * x.shape[0]; n += x.shape[0]
+    if args.arch == "patchcore":
+        from quishguard.vit.patchcore import PatchCoreViT
+        model = PatchCoreViT().to(device)
+        res["parameters"] = int(sum(p.numel() for p in model.backbone.parameters()))
+        n_fit = min(args.fit_images, len(tr)) if not args.smoke else 256
+        dl_fit = DataLoader(CleanQR(tr, args.raw_dir, augment=True), batch_size=64, shuffle=True,
+                            num_workers=args.workers)
+        model.fit(dl_fit, device, max_images=n_fit)
+        res["memory_bank_patches"] = int(model.memory.shape[0])
+        res["fit_images"] = int(n_fit)
         va = float(np.mean(score_loader(model, dl_va, device)))
-        history.append({"epoch": ep, "train_mse": tot / n, "val_normal_score": va})
-        print(f"epoch {ep:2d}  train MSE {tot/n:.5f}  val normal anomaly score {va:.5f}  ({(time.time()-t0)/60:.1f} min)")
-        if va < best:
-            best = va
-            torch.save({"arch": args.arch, "state_dict": model.state_dict()}, ckpt)
-    res["train_minutes"] = (time.time() - t0) / 60
-    pd.DataFrame(history).to_csv(args.reports / "history.csv", index=False)
+        print(f"PatchCore fitted in {(time.time()-t0)/60:.1f} min; val normal anomaly score {va:.4f}")
+        torch.save({"arch": "patchcore", "state_dict": model.state_dict()}, ckpt)
+        res["train_minutes"] = (time.time() - t0) / 60
+    else:
+        model = build(args.arch).to(device)
+        n_params = sum(p.numel() for p in model.parameters())
+        res["parameters"] = int(n_params)
+        print(f"{args.arch} autoencoder: {n_params/1e6:.2f} M parameters, {len(tr):,} training images")
+        opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.05)
+        steps = args.epochs * len(dl_tr)
+        sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=args.lr, total_steps=max(steps, 1), pct_start=0.1)
+        scaler = torch.amp.GradScaler("cuda", enabled=device.type == "cuda")
+
+        history, best = [], float("inf")
+        for ep in range(1, args.epochs + 1):
+            model.train(); tot = n = 0
+            for x in dl_tr:
+                x = x.to(device, non_blocking=True)
+                with torch.autocast(device_type=device.type, enabled=device.type == "cuda"):
+                    rec = model(x)
+                    loss = torch.nn.functional.mse_loss(rec.float(), x)
+                opt.zero_grad(set_to_none=True)
+                scaler.scale(loss).backward()
+                scaler.step(opt); scaler.update(); sched.step()
+                tot += loss.item() * x.shape[0]; n += x.shape[0]
+            va = float(np.mean(score_loader(model, dl_va, device)))
+            history.append({"epoch": ep, "train_mse": tot / n, "val_normal_score": va})
+            print(f"epoch {ep:2d}  train MSE {tot/n:.5f}  val normal anomaly score {va:.5f}  ({(time.time()-t0)/60:.1f} min)")
+            if va < best:
+                best = va
+                torch.save({"arch": args.arch, "state_dict": model.state_dict()}, ckpt)
+        res["train_minutes"] = (time.time() - t0) / 60
+        pd.DataFrame(history).to_csv(args.reports / "history.csv", index=False)
+
 
     # ---------------------------------------------------------------- evaluation
-    model.load_state_dict(torch.load(ckpt, map_location=device)["state_dict"])
+    model = load_visual(ckpt, device)
     man = pd.read_csv(args.tamper_dir / "manifest.csv")
     if args.smoke:
         man = man.groupby(["split", "attack"], group_keys=False).head(20)
@@ -233,13 +272,13 @@ def main(argv=None):
     x = torch.from_numpy(prepare(f0))[None, None].to(device)
     with torch.no_grad():
         for _ in range(5):
-            model(x)
+            patch_map(model, x)
         if device.type == "cuda":
             torch.cuda.synchronize()
         t = time.perf_counter()
         for _ in range(50):
             x = torch.from_numpy(prepare(f0))[None, None].to(device)
-            pe = patch_errors(x, model(x)); anomaly_score(pe)
+            anomaly_score(patch_map(model, x))
         if device.type == "cuda":
             torch.cuda.synchronize()
     res["latency_ms_per_image"] = (time.perf_counter() - t) * 1000 / 50
@@ -258,8 +297,8 @@ def main(argv=None):
         for a in ["normal", "sticker", "logo", "module_flip", "warp", "double_print"]:
             ax.hist(np.log10(te.loc[te.attack == a, "error"] + 1e-8), bins=60, alpha=0.5, label=a, density=True)
         ax.axvline(np.log10(thr), color="k", ls="--", lw=1, label="threshold (5% FPR on val)")
-        ax.set_xlabel("log10 anomaly score (patch reconstruction error)"); ax.set_ylabel("density")
-        ax.set_title(f"{args.arch.upper()} autoencoder: test anomaly scores"); ax.legend(fontsize=7)
+        ax.set_xlabel("log10 anomaly score"); ax.set_ylabel("density")
+        ax.set_title(f"{args.arch}: test anomaly scores"); ax.legend(fontsize=7)
         fig.tight_layout(); fig.savefig(args.reports / "score_hist.png", dpi=150); plt.close(fig)
     except Exception as e:
         print("plot skipped:", e)
