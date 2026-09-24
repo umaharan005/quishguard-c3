@@ -1,0 +1,27 @@
+# Core (laptop and Colab)
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+opencv-python>=4.9
+Pillow>=10.0
+tldextract>=5.1
+segno>=1.6            # make QR codes (tests, tamper set, live test)
+pyzbar>=0.1.9         # optional 2nd decoder (on Windows it bundles the zbar DLL)
+tqdm>=4.66
+matplotlib>=3.8
+pytest>=8.0
+
+# URL model (Phase 3)
+xgboost>=2.0
+shap>=0.45
+
+# ViT (Phase 5): on Colab torch is already installed; on the laptop install
+# torch from https://pytorch.org for your CUDA version first.
+timm>=1.0
+
+# Live checks and API (Phases 8-9)
+python-whois>=0.9
+requests>=2.31
+fastapi>=0.110
+uvicorn>=0.29
+streamlit>=1.33
