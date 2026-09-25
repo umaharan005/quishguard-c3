@@ -7,6 +7,11 @@ Each image has two truths:
 Reference tier (proposal 3.7.6): both -> Critical, one -> Phishing, none -> Safe.
 Alert truth: url_malicious OR tampered.
 
+Unreadable codes: if no decoder can read the code, it delivers no link, so the
+observable truth is url_malicious = 0 (only the tamper signal exists). The
+older "hidden link" truth (the link that was there before the attack) is also
+reported as a sensitivity check (summary.json: test_hidden_link_truth).
+
 Compares URL-only, visual-only and weighted fusion (w_url = 0.5 ... 0.8, with
 and without the tamper floor), chooses the weight on VAL, and reports TEST.
 
@@ -57,7 +62,7 @@ def add_truth(m: pd.DataFrame, urls: pd.DataFrame) -> pd.DataFrame:
     by_url = dict(zip(urls["url"].astype(str).str.strip(), urls["label"]))
     by_norm = dict(zip(urls["url_norm"].astype(str), urls["label"]))
 
-    def lab(row):
+    def lab(row, hidden=False):
         if row["decodes"] and str(row["decoded_text"]).strip():
             t = str(row["decoded_text"]).strip()
             if t in by_url:
@@ -66,13 +71,16 @@ def add_truth(m: pd.DataFrame, urls: pd.DataFrame) -> pd.DataFrame:
             if n in by_norm:
                 return int(by_norm[n])
             return np.nan
-        return int(row["base_label"])       # unreadable: the link that was originally there
+        # unreadable: no link is delivered (observable truth), or the link that was there (hidden truth)
+        return int(row["base_label"]) if hidden else 0
 
     m = m.copy()
     m["url_malicious"] = m.apply(lab, axis=1)
+    m["url_malicious_hidden"] = m.apply(lab, axis=1, hidden=True)
     m = m[m["url_malicious"].notna()].copy()
     m["url_malicious"] = m["url_malicious"].astype(int)
     m["gt_tier"] = [ground_truth_tier(u == 1, t == 1) for u, t in zip(m["url_malicious"], m["tampered"])]
+    m["gt_tier_hidden"] = [ground_truth_tier(u == 1, t == 1) for u, t in zip(m["url_malicious_hidden"], m["tampered"])]
     m["should_alert"] = ((m["url_malicious"] == 1) | (m["tampered"] == 1)).astype(int)
     return m
 
@@ -163,6 +171,8 @@ def main(argv=None):
 
     summary = {"chosen_on_val": best, "w_url": w_best, "tamper_floor": floor_best,
                "test": tab.loc[("test", best)].to_dict(),
+               "test_hidden_link_truth": {k: v for k, v in evaluate(test_d.assign(gt_tier=test_d["gt_tier_hidden"]),
+                                                                    w_best, floor_best).items() if not k.startswith("_")},
                "test_url_only": tab.loc[("test", "url_only")].to_dict(),
                "test_visual_only": tab.loc[("test", "visual_only")].to_dict()}
     (args.reports / "summary.json").write_text(json.dumps(summary, indent=2, default=float))
@@ -185,6 +195,8 @@ def main(argv=None):
             "tier_accuracy", "tier_within_one", "tier_kappa_linear", "pearson_score_vs_gt"]
     print("\nTEST ABLATION\n", tab.loc["test"][show].round(4).to_string())
     print(f"\nChosen on val: {best}")
+    print("Sensitivity (hidden-link truth for unreadable codes): tier_accuracy =",
+          round(summary["test_hidden_link_truth"]["tier_accuracy"], 4))
     print("\nTier confusion (test):\n", cm.to_string())
     print("\nBy attack (test):\n", by_attack.round(3).to_string())
 

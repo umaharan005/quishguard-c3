@@ -180,7 +180,10 @@ def summarize(res: pd.DataFrame) -> pd.DataFrame:
             "flagged_%_(Suspicious+)": 100 * w[mal].mean() if mal.any() else np.nan,
             "false_alarm_%_(benign Phishing+)": 100 * a[ben].mean() if ben.any() else np.nan,
             "url_stream_only_detected_%": 100 * url_alert[mal].mean() if mal.any() else np.nan,
+            "url_stream_only_false_alarm_%": 100 * url_alert[ben].mean() if ben.any() else np.nan,
             "mean_score_malicious": g.loc[mal, "score"].mean() if mal.any() else np.nan,
             "mean_score_benign": g.loc[ben, "score"].mean() if ben.any() else np.nan,
+            "mean_visual_benign": g.loc[ben, "visual_score"].mean() if ben.any() else np.nan,
+            "mean_visual_malicious": g.loc[mal, "visual_score"].mean() if mal.any() else np.nan,
         })
     return pd.DataFrame(rows).set_index("situation").round(2)
