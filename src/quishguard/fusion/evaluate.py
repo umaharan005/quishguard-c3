@@ -117,11 +117,16 @@ def main(argv=None):
     ap.add_argument("--urls", type=Path, required=True, help="urls_clean.csv.gz (to look up the true label of decoded links)")
     ap.add_argument("--reports", type=Path, required=True)
     ap.add_argument("--url-model", default="url_model_v2.joblib")
+    ap.add_argument("--limit", type=int, default=0,
+                    help="use at most N images per split and attack type (e.g. 300 on CPU; 0 = all)")
     args = ap.parse_args(argv)
     args.reports.mkdir(parents=True, exist_ok=True)
 
     man = pd.read_csv(args.tamper_dir / "manifest.csv", keep_default_na=False)
     man["decoded_text"] = man["decoded_text"].astype(str)
+    if args.limit:
+        man = pd.concat([g.sample(n=min(len(g), args.limit), random_state=0)
+                         for _, g in man.groupby(["split", "attack"])], ignore_index=True)
     urls = pd.read_csv(args.urls, usecols=["url", "url_norm", "label"], dtype={"url": str, "url_norm": str}, keep_default_na=False)
     print("Scoring URL and visual streams for", len(man), "images ...")
     scored = add_truth(score_streams(man, args.models_dir, args.tamper_dir, args.url_model), urls)
