@@ -121,6 +121,8 @@ def lan_addresses() -> list[str]:
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--models-dir", type=Path, default=config.MODELS_DIR)
+    ap.add_argument("--url-model", default=None,
+                    help="URL model file in --models-dir (default: url_model_v2_portable.joblib if present, else url_model_v2.joblib)")
     ap.add_argument("--data-dir", type=Path, default=config.REPO_ROOT / "data" / "app",
                     help="where scans.db and the scan photos/heatmaps are kept")
     ap.add_argument("--host", default="0.0.0.0", help="0.0.0.0 = reachable from the phone on the same Wi-Fi")
@@ -135,8 +137,10 @@ def main(argv=None):
     import uvicorn
     from quishguard.pipeline import QuishGuard
 
-    print("Loading models from", args.models_dir, "...")
-    qg = QuishGuard(models_dir=args.models_dir, w_url=args.w_url,
+    url_model = args.url_model or ("url_model_v2_portable.joblib"
+                                   if (args.models_dir / "url_model_v2_portable.joblib").exists() else "url_model_v2.joblib")
+    print("Loading models from", args.models_dir, "(URL model:", url_model + ") ...")
+    qg = QuishGuard(models_dir=args.models_dir, url_model=url_model, w_url=args.w_url,
                     tamper_floor=0.0 if args.no_floor else 0.6, device=args.device)
     service = ScanService(qg, ScanStore(args.data_dir / "scans.db"), args.data_dir / "scans", args.webhook)
     app = create_app(service, args.key)

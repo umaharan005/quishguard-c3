@@ -37,6 +37,12 @@ class UrlScorer:
         b = joblib.load(path)
         self.feat: UrlFeaturizer = b["featurizer"]
         self.model = b["model"]
+        if self.model is None and b.get("model_json") is not None:
+            # portable bundle: the XGBoost model is stored in XGBoost's own JSON format
+            # (loads on any OS / build), not as a pickled Python object
+            import xgboost as xgb
+            self.model = xgb.XGBClassifier()
+            self.model.load_model(bytearray(b["model_json"]))
         self.cal = b["calibrator"]
         self.thresholds = b["thresholds"]
         self.names = b["feature_names"]
