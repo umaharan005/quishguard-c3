@@ -19,6 +19,11 @@ try:  # optional second decoder
 except Exception:  # pragma: no cover - pyzbar missing or zbar DLL missing
     _pyzbar = None
 
+try:  # optional third decoder (strongest on real photos and designer codes): pip install zxing-cpp
+    import zxingcpp as _zx
+except Exception:  # pragma: no cover
+    _zx = None
+
 ImageLike = Union[str, Path, np.ndarray, "PIL.Image.Image"]  # noqa: F821
 
 PAD = 24  # CIC images have no white quiet zone; decoders need one
@@ -83,8 +88,24 @@ def _try_pyzbar(gray: np.ndarray):
     return None, None
 
 
+def _try_zxing(gray: np.ndarray):
+    if _zx is None:
+        return None, None
+    try:
+        results = _zx.read_barcodes(gray, formats=_zx.BarcodeFormat.QRCode)
+    except Exception:
+        return None, None
+    for r in results:
+        if r.text:
+            p = r.position
+            pts = np.array([[p.top_left.x, p.top_left.y], [p.top_right.x, p.top_right.y],
+                            [p.bottom_right.x, p.bottom_right.y], [p.bottom_left.x, p.bottom_left.y]], np.float32)
+            return r.text, pts
+    return None, None
+
+
 def decode(img: ImageLike) -> DecodeResult:
-    """Decode a QR image. Tries OpenCV, then an upscaled copy, then pyzbar."""
+    """Decode a QR image. Tries OpenCV, then an upscaled copy, then pyzbar, then zxing-cpp."""
     gray = add_quiet_zone(to_gray(img))
     attempts = [("opencv", gray)]
     if max(gray.shape) < 400:
@@ -98,6 +119,9 @@ def decode(img: ImageLike) -> DecodeResult:
     text, pts = _try_pyzbar(gray)
     if text:
         return DecodeResult(True, text, payload_type(text), "pyzbar", pts, gray)
+    text, pts = _try_zxing(gray)
+    if text:
+        return DecodeResult(True, text, payload_type(text), "zxing", pts, gray)
     return DecodeResult(False, image=gray)
 
 
@@ -186,3 +210,55 @@ def downscale(gray: np.ndarray, max_side: int = 1600) -> np.ndarray:
     h, w = gray.shape[:2]
     f = max_side / max(h, w)
     return gray if f >= 1 else cv2.resize(gray, None, fx=f, fy=f, interpolation=cv2.INTER_AREA)
+
+
+def photo_candidates(gray: np.ndarray) -> list[tuple[str, np.ndarray]]:
+    """Versions of a camera photo to try, from cheapest to most processed.
+    Screens and prints give glare, moire and soft edges; one of these usually reads."""
+    g = downscale(gray, 1600)
+    out = [("photo", g)]
+    for side in (1000, 700):
+        if max(g.shape) > side:
+            out.append((f"photo_{side}", downscale(g, side)))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(downscale(g, 1000))
+    out.append(("photo_clahe", clahe))
+    blur = cv2.GaussianBlur(downscale(g, 1000), (5, 5), 0)
+    out.append(("photo_otsu", cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]))
+    out.append(("photo_adaptive", cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                                         cv2.THRESH_BINARY, 51, 10)))
+    return out
+
+
+def decode_photo(gray: np.ndarray) -> DecodeResult:
+    """decode() for real camera photos: tries several cleaned-up versions.
+    If none can be read, the result still carries the image where a code was
+    FOUND (not read), so the visual model can check it; image=None means no code at all."""
+    cands = photo_candidates(gray)
+    for name, c in cands:
+        r = decode(c)
+        if r.ok:
+            r.method = f"{name}+{r.method}"
+            return r
+    for name, c in cands:                       # nothing readable: is there a code at all?
+        r = DecodeResult(False, image=add_quiet_zone(c), method=name)
+        crop = locate(r)
+        if crop is not None:
+            # a straightened crop often reads when the whole photo did not (curved posters,
+            # rounded-dot and logo designs); keep r.image/corners so locate() still works
+            blur = cv2.GaussianBlur(crop, (3, 3), 0)
+            for tag, cc in (("crop", crop), ("crop_otsu", cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]),
+                            ("crop_small", cv2.resize(crop, (224, 224), interpolation=cv2.INTER_AREA))):
+                d = decode(cc)
+                if d.ok:
+                    r.ok, r.text, r.payload_type, r.method = True, d.text, d.payload_type, f"{name}+{tag}+{d.method}"
+                    break
+            return r
+    return DecodeResult(False, image=None)
+
+
+def clean_photo(crop: np.ndarray) -> np.ndarray:
+    """Turn a straightened photo of a code into a clean black-and-white image, like the
+    computer-made codes the visual model learned from (removes glare, grey paper, screen
+    moire). Stickers and edits stay visible: they change the black/white pattern itself."""
+    blur = cv2.GaussianBlur(crop, (3, 3), 0)
+    return cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]

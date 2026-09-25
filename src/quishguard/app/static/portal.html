@@ -2,256 +2,538 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QuishGuard Alert Portal</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>QuishGuard · Security Portal</title>
+<link rel="stylesheet" href="/static/ui.css">
 <style>
-:root{
-  --bg:#F3F5F2; --surface:#FFFFFF; --sunk:#E8ECE7; --ink:#15201B; --muted:#56635C; --line:#CBD3CD;
-  --accent:#17665A; --accent-ink:#FFFFFF; --sel:#D5E8E3;
-  --safe:#2F7D4F; --susp:#A87A00; --phish:#C0571A; --crit:#AE2A22;
-  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --mono:ui-monospace,Menlo,Consolas,monospace;
+/* ---------- header ---------- */
+.appbar{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(1.4) blur(8px);border-bottom:1px solid var(--border)}
+.appbar-in{max-width:1480px;margin:0 auto;height:60px;padding:0 24px;display:flex;align-items:center;gap:18px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand .t{display:flex;flex-direction:column;line-height:1.15}
+.brand b{font-size:15.5px;font-weight:750;letter-spacing:-.01em}
+.brand span{font-size:12px;color:var(--muted)}
+nav.main{display:flex;gap:2px;margin-left:10px}
+nav.main a{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 12px;border-radius:9px;color:var(--muted);font-weight:600;font-size:13.5px;text-decoration:none;transition:background var(--t),color var(--t)}
+nav.main a:hover{color:var(--ink);background:var(--surface-2)}
+nav.main a[aria-current="page"]{color:var(--ink);background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--border)}
+nav.main .cnt{min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--phish);color:#fff;font-size:11px;font-weight:700;display:inline-grid;place-items:center}
+.right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.live{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted);padding:0 6px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:13px;border:1px solid var(--border);cursor:pointer}
+[data-i]{display:inline-flex;align-items:center}
+html,body{overflow-x:clip}
+/* ---------- layout ---------- */
+main{max-width:1480px;margin:0 auto;padding:22px 24px 48px;display:flex;flex-direction:column;gap:18px}
+.page-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.page-h h1{margin:0;font-size:22px;font-weight:750;letter-spacing:-.02em}
+.page-h p{margin:3px 0 0;color:var(--muted)}
+.metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.metric .ic.safe{color:var(--safe-ink);background:var(--safe-soft);border-color:transparent}
+.metric .ic.susp{color:var(--susp-ink);background:var(--susp-soft);border-color:transparent}
+.metric .ic.phish{color:var(--phish-ink);background:var(--phish-soft);border-color:transparent}
+.metric .ic.crit{color:#fff;background:var(--crit);border-color:transparent}
+.metric .ic.brand{color:var(--brand);background:var(--brand-soft);border-color:transparent}
+.work{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:18px;align-items:start}
+.leftcol{display:flex;flex-direction:column;gap:18px;min-width:0}
+/* ---------- device panel ---------- */
+.device{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;padding:20px;align-items:center}
+.device .who{display:flex;flex-direction:column;gap:14px;min-width:0}
+.dev-row{display:flex;align-items:center;gap:14px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.dev-row .ph{width:40px;height:40px;border-radius:11px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;flex:none}
+.dev-row .nm{display:flex;flex-direction:column;min-width:0}
+.dev-row .nm b{font-size:14px}
+.dev-row .nm span{font-size:12.5px;color:var(--muted)}
+.dev-row .state{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:650}
+.dev-row .state.connected{color:var(--safe-ink)} .dev-row .state.offline,.dev-row .state.disconnected{color:var(--muted)}
+.qrbox{display:flex;flex-direction:column;align-items:center;gap:8px}
+.qrbox img{width:176px;height:176px;border-radius:14px;background:#fff;padding:10px;border:1px solid var(--border);image-rendering:pixelated}
+.qrbox small{font-size:12px;color:var(--muted);font-family:var(--mono)}
+/* ---------- alert center ---------- */
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--border)}
+.toolbar .search{flex:1;min-width:200px}
+.alist{display:flex;flex-direction:column}
+.arow{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:4px 118px minmax(0,1fr) 110px 128px 16px;gap:14px;align-items:center;
+      padding:12px 18px;border-bottom:1px solid var(--border);transition:background var(--t)}
+.arow:last-child{border-bottom:0}
+.arow:hover{background:var(--surface-2)}
+.arow[aria-selected="true"]{background:var(--brand-soft)}
+.arow .sev{align-self:stretch;border-radius:4px;background:var(--faint)}
+.arow .vs{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.arow .vs small{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.arow .vs small b{color:var(--ink);font-weight:700}
+.arow .lk{display:flex;flex-direction:column;min-width:0}
+.arow .lk span{font:12.5px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arow .lk small{font-size:12px;color:var(--muted)}
+.arow .tm{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.arow .chev{color:var(--faint)}
+.arow.Critical{background:color-mix(in srgb,var(--crit-soft) 70%,transparent)}
+.arow.Critical .sev{background:var(--crit);width:4px}
+.arow.Phishing .sev{background:var(--phish)} .arow.Suspicious .sev{background:var(--susp)} .arow.Safe .sev{background:var(--safe)}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 18px;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px}
+.empty{padding:32px 18px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);margin-bottom:4px}
+/* ---------- table ---------- */
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+th{font-size:11.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--surface-2)}
+th button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+th button:hover{color:var(--ink)}
+th .ar{opacity:.35} th[aria-sort] .ar{opacity:1;color:var(--brand)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.lk{font:12.5px var(--mono);max-width:260px;overflow:hidden;text-overflow:ellipsis}
+tbody tr{cursor:pointer;transition:background var(--t)}
+tbody tr:hover{background:var(--surface-2)}
+tbody tr[aria-selected="true"]{background:var(--brand-soft)}
+.mb{display:inline-block;width:38px;height:5px;border-radius:3px;background:var(--surface-2);border:1px solid var(--border);vertical-align:middle;margin-left:8px;overflow:hidden}
+.mb i{display:block;height:100%}
+/* ---------- detail ---------- */
+.detail{position:sticky;top:78px;max-height:calc(100vh - 96px);overflow:auto;display:flex;flex-direction:column}
+.detail .sec{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:12px}
+.detail .sec:last-child{border-bottom:0}
+.detail h3{margin:0;font-size:11.5px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.dhead{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}
+.dhead .tt{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.dhead h2{margin:2px 0 4px;font-size:20px;font-weight:750;letter-spacing:-.015em}
+.sevscale{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px}
+.sevscale i{height:6px;border-radius:3px;background:var(--surface-2);border:1px solid var(--border)}
+.sevscale-l{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-size:10.5px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.dclose{display:none}
+textarea.note{width:100%;min-height:64px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:9px 11px;background:var(--surface);transition:border-color var(--t),box-shadow var(--t)}
+textarea.note:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-ring)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+details.json summary{cursor:pointer;color:var(--muted);font-size:12.5px;font-weight:600}
+details.json pre{margin:8px 0 0;font:11.5px/1.5 var(--mono);background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px;overflow:auto;max-height:240px}
+.dmeta{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:13px}
+.dmeta dt{color:var(--muted)} .dmeta dd{margin:0;overflow-wrap:anywhere}
+/* ---------- analytics ---------- */
+.agrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.big{font-size:32px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.dist{display:flex;height:14px;border-radius:99px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border)}
+.dist i{display:block;height:100%}
+.dl{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px 12px;align-items:center;font-size:13.5px}
+.dl .sw{width:10px;height:10px;border-radius:3px}
+.hbars{display:flex;align-items:flex-end;gap:6px;height:120px}
+.hbars div{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end}
+.hbars .b{width:100%;border-radius:5px 5px 2px 2px;background:var(--brand);min-height:2px;position:relative;transition:height .6s cubic-bezier(.2,.7,.2,1)}
+.hbars .b .a{position:absolute;left:0;right:0;bottom:0;background:var(--phish);border-radius:0 0 2px 2px}
+.hbars small{font-size:10.5px;color:var(--faint)}
+/* ---------- mobile nav ---------- */
+.bnav{display:none}
+@media (max-width:1280px){ .metrics{grid-template-columns:repeat(3,minmax(0,1fr))} .work{grid-template-columns:minmax(0,1fr) 400px} }
+@media (max-width:1100px){
+  .hide-md{display:none!important}
+  .work{grid-template-columns:1fr}
+  .detail{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);max-height:none;border-radius:0;z-index:65;transform:translateX(105%);visibility:hidden;transition:transform .22s cubic-bezier(.2,.7,.2,1),visibility 0s .22s;box-shadow:var(--sh-3)}
+  body.drawer .detail{transform:none;visibility:visible;transition:transform .22s cubic-bezier(.2,.7,.2,1)}
+  body.drawer::after{content:"";position:fixed;inset:0;background:rgba(16,24,40,.45);z-index:60}
+  .dclose{display:inline-flex}
+  .agrid{grid-template-columns:1fr 1fr}
 }
-@media (prefers-color-scheme: dark){
-  :root{--bg:#0F1512;--surface:#161E1A;--sunk:#1D2722;--ink:#E4EBE6;--muted:#9AA8A0;--line:#2F3B35;
-        --accent:#5CC2AE;--accent-ink:#0F1512;--sel:#1D3A34;--safe:#5FBF83;--susp:#E0B437;--phish:#EE8A4F;--crit:#F0736A}
+@media (max-width:760px){
+  .appbar-in{padding:0 14px;gap:10px} nav.main,.hide-sm{display:none!important}
+  main{padding:14px 14px 96px}
+  .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .device{grid-template-columns:1fr} .qrbox img{width:150px;height:150px}
+  .agrid{grid-template-columns:1fr}
+  .arow{grid-template-columns:4px minmax(0,1fr) auto;gap:10px;padding:12px 14px}
+  .arow .lk{grid-column:2/4;order:3} .arow .tm,.arow .chev{display:none}
+  .arow .st{justify-self:end}
+  table,thead,tbody,tr,td{display:block} thead{display:none}
+  tbody tr{border-bottom:1px solid var(--border);padding:10px 14px;display:grid;grid-template-columns:1fr auto;gap:4px 10px}
+  td{border:0;padding:0;white-space:normal}
+  td.lk{grid-column:1/-1;max-width:none;order:5}
+  td[data-k="time"]{order:1;color:var(--muted);font-size:12.5px} td[data-k="status"]{order:2;justify-self:end}
+  td[data-k="verdict"]{order:3} td[data-k="score"]{order:4;text-align:right}
+  td[data-k="link"],td[data-k="image"]{display:none}
+  .bnav{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--surface);border-top:1px solid var(--border);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+  .bnav a{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px;border-radius:10px;color:var(--muted);text-decoration:none;font-size:11.5px;font-weight:600;min-height:48px;justify-content:center}
+  .bnav a[aria-current="page"]{color:var(--brand);background:var(--brand-soft)}
 }
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--body);padding:16px}
-.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
-h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em}
-h1 small{font-weight:500;color:var(--muted);font-size:14px;margin-left:8px}
-.live{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--safe)}
-.dot.off{background:var(--crit)}
-.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-button{font:600 13px var(--body);border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 12px;cursor:pointer}
-button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-button[aria-pressed="true"]{background:var(--sel);border-color:var(--accent)}
-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
-@media (max-width:900px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
-.tile span{color:var(--muted);font-size:12px}
-.tile b{font-size:24px;font-variant-numeric:tabular-nums;line-height:1.2}
-.tile.alert{border-color:var(--crit);border-width:2px}
-.chip{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px}
-.chip i{width:10px;height:10px;border-radius:2px;display:inline-block}
-.c-Safe{background:var(--safe)} .c-Suspicious{background:var(--susp)} .c-Phishing{background:var(--phish)} .c-Critical{background:var(--crit)}
-#toasts{position:fixed;right:16px;top:16px;display:flex;flex-direction:column;gap:8px;z-index:10;max-width:min(420px,calc(100vw - 32px))}
-.toast{background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--crit);border-radius:8px;padding:10px 12px;
-       box-shadow:0 6px 20px rgba(0,0,0,.18);cursor:pointer;display:flex;flex-direction:column;gap:2px}
-.toast.t-Phishing{border-left-color:var(--phish)}
-.toast b{font-size:14px} .toast span{font:12px var(--mono);color:var(--muted);overflow-wrap:anywhere}
-.main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
-@media (max-width:980px){.main{grid-template-columns:1fr}}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.panel-h{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--sunk);gap:8px;flex-wrap:wrap}
-.panel-h h2{margin:0;font-size:14px}
-.tbl{overflow-x:auto;max-height:70vh;overflow-y:auto}
-table{border-collapse:collapse;width:100%;min-width:640px}
-th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
-th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);position:sticky;top:0;background:var(--surface)}
-td.nw{white-space:nowrap}
-td.num{font-variant-numeric:tabular-nums;text-align:right} th.num{text-align:right}
-td.link{font:12px var(--mono);max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-tbody tr{cursor:pointer}
-tbody tr:hover{background:var(--sunk)}
-tbody tr.sel{background:var(--sel)}
-tbody tr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-.status-new{color:var(--crit);font-weight:700}
-.status-acknowledged{color:var(--muted)}
-.empty{padding:24px;color:var(--muted);text-align:center}
-.detail{padding:14px;display:flex;flex-direction:column;gap:12px}
-.verdict{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border-radius:8px;padding:12px 14px;color:#fff}
-.verdict b{font-size:22px} .verdict span{font-variant-numeric:tabular-nums}
-@media (prefers-color-scheme: dark){.verdict{color:#0F1512}}
-dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
-dt{color:var(--muted)} dd{margin:0;overflow-wrap:anywhere}
-.mono{font:12.5px var(--mono);background:var(--sunk);padding:8px 10px;border-radius:6px;overflow-wrap:anywhere;user-select:all}
-.imgs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.imgs figure{margin:0;display:flex;flex-direction:column;gap:4px}
-.imgs img{width:100%;aspect-ratio:1;object-fit:contain;background:var(--sunk);border-radius:6px}
-.imgs figcaption{font-size:12px;color:var(--muted)}
-ul{margin:0;padding-left:18px}
-details pre{margin:6px 0 0;font:12px var(--mono);background:var(--sunk);padding:10px;border-radius:6px;overflow:auto;max-height:260px}
-.note{font-size:12.5px;color:var(--muted)}
 </style>
 </head>
 <body>
-<div id="toasts" aria-live="assertive"></div>
-<div class="wrap">
-  <header>
-    <h1>QuishGuard <small>QR phishing alert portal · C3</small></h1>
-    <div class="tools">
-      <span class="live"><span class="dot" id="dot"></span><span id="liveText">Connecting…</span></span>
-      <button id="sound" aria-pressed="false">Sound off</button>
+<header class="appbar"><div class="appbar-in">
+  <div class="brand"><span id="logo"></span><div class="t"><b>QuishGuard</b><span class="hide-md">QR phishing protection</span></div></div>
+  <nav class="main" id="nav">
+    <a href="#overview" data-v="overview"><span data-i="grid"></span>Overview</a>
+    <a href="#scans" data-v="scans"><span data-i="list"></span>Scans</a>
+    <a href="#alerts" data-v="alerts"><span data-i="bell"></span>Alerts <span class="cnt" id="navCnt" hidden></span></a>
+    <a href="#analytics" data-v="analytics"><span data-i="chart"></span>Analytics</a>
+  </nav>
+  <div class="right">
+    <span class="live" title="Updates every 2 seconds"><span class="live-dot off" id="dot"></span><span id="liveText" class="hide-sm">Connecting</span></span>
+    <button class="btn icon" id="sound" aria-pressed="false" aria-label="Alert sound off" title="Alert sound"></button>
+    <button class="btn" id="connectBtn"><span data-i="phone"></span><span class="hide-md">Connect phone</span></button>
+    <a class="btn hide-md" id="exportTop" href="/api/export.csv"><span data-i="download"></span>Export CSV</a>
+    <div class="dropdown">
+      <button class="avatar" id="avatar" aria-haspopup="menu" aria-expanded="false" aria-label="Analyst menu">A</button>
+      <div class="menu" id="menu" role="menu" hidden></div>
     </div>
-  </header>
-
-  <div class="tiles">
-    <div class="tile"><span>Total scans</span><b id="sTotal">0</b></div>
-    <div class="tile alert"><span>Open alerts</span><b id="sOpen">0</b></div>
-    <div class="tile"><span class="chip"><i class="c-Safe"></i>Safe</span><b id="sSafe">0</b></div>
-    <div class="tile"><span class="chip"><i class="c-Suspicious"></i>Suspicious</span><b id="sSuspicious">0</b></div>
-    <div class="tile"><span class="chip"><i class="c-Phishing"></i>Phishing</span><b id="sPhishing">0</b></div>
-    <div class="tile"><span class="chip"><i class="c-Critical"></i>Critical</span><b id="sCritical">0</b></div>
   </div>
+</div></header>
 
-  <div class="main">
-    <section class="panel">
-      <div class="panel-h">
-        <h2>Scans</h2>
-        <div class="tools">
-          <button id="fAll" aria-pressed="true">All</button>
-          <button id="fAlerts" aria-pressed="false">Alerts only</button>
+<main>
+  <div class="page-h"><div><h1 id="pageTitle">Overview</h1><p id="pageSub">Live QR phishing activity across connected phones.</p></div></div>
+
+  <section class="metrics" id="metrics"></section>
+
+  <section class="card device" id="devicePanel">
+    <div class="who">
+      <div><div class="eyebrow">Connected device</div><h2 style="margin:4px 0 0;font-size:17px;font-weight:700;letter-spacing:-.01em">Phone scanner</h2></div>
+      <div id="devList"></div>
+      <p class="muted" style="margin:0;font-size:13px">Scan the code with the phone camera to open the scanner. Phone and laptop must be on the same Wi-Fi network.</p>
+    </div>
+    <div class="qrbox"><img id="qrImg" alt="QR code that opens the phone scanner"><small id="qrUrl"></small></div>
+  </section>
+
+  <div class="work" id="work">
+    <div class="leftcol">
+      <section class="card" id="alertCenter">
+        <div class="card-h"><div><h2>Alerts</h2><p>Security events requiring attention</p></div></div>
+        <div style="padding:12px 18px 0"><div class="tabs" role="tablist" id="aTabs"></div></div>
+        <div class="toolbar">
+          <label class="search"><span data-i="search"></span><input id="aSearch" type="search" placeholder="Search alerts (link, scan ID, device)" aria-label="Search alerts"></label>
+          <select class="select" id="aFilter" aria-label="Filter by status">
+            <option value="">All statuses</option><option value="new">Open</option><option value="acknowledged">Acknowledged</option>
+            <option value="resolved">Resolved</option><option value="false_positive">False positive</option><option value="false_negative">Missed attack</option><option value="none">No alert</option></select>
+          <select class="select" id="aSort" aria-label="Sort">
+            <option value="new">Newest first</option><option value="old">Oldest first</option><option value="high">Highest score</option><option value="low">Lowest score</option></select>
+          <a class="btn" id="exportA" href="/api/export.csv"><span data-i="download"></span>Export</a>
         </div>
-      </div>
-      <div class="tbl">
-        <table>
-          <thead><tr><th>Time</th><th>Tier</th><th class="num">Score</th><th class="num">Link</th><th class="num">Image</th><th>Inside the code (made safe)</th><th>Status</th></tr></thead>
-          <tbody id="rows"></tbody>
-        </table>
-        <div class="empty" id="empty">No scans yet. Open the scan page on your phone and scan a QR code.</div>
-      </div>
-    </section>
+        <div class="alist" id="alist"></div>
+        <div class="foot" id="aFoot"></div>
+      </section>
 
-    <section class="panel">
-      <div class="panel-h"><h2>Alert detail</h2></div>
-      <div class="detail" id="detail"><p class="note">Select a scan to see its alert.</p></div>
-    </section>
+      <section class="card" id="scanTable">
+        <div class="card-h"><div><h2>Scans</h2><p>Every QR code checked by QuishGuard</p></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <label class="search"><span data-i="search"></span><input id="tSearch" type="search" placeholder="Search scans" aria-label="Search scans"></label>
+            <select class="select" id="tTier" aria-label="Verdict"><option value="">All verdicts</option><option>Critical</option><option>Phishing</option><option>Suspicious</option><option>Safe</option></select>
+          </div></div>
+        <div class="tbl" style="margin-top:14px"><table>
+          <thead><tr>
+            <th aria-sort="descending" data-s="seq"><button>Time <span class="ar">↓</span></button></th>
+            <th data-s="tier"><button>Verdict <span class="ar">↕</span></button></th>
+            <th class="n" data-s="score"><button>Score <span class="ar">↕</span></button></th>
+            <th class="n" data-s="url"><button>Link <span class="ar">↕</span></button></th>
+            <th class="n" data-s="visual"><button>Image <span class="ar">↕</span></button></th>
+            <th>Inside code</th><th data-s="status"><button>Status <span class="ar">↕</span></button></th>
+          </tr></thead><tbody id="rows"></tbody></table></div>
+        <div class="empty" id="tEmpty" hidden><b>No scans yet</b>Connect a phone and scan a QR code to see it here.</div>
+        <div class="foot"><span id="tInfo"></span><span style="display:flex;gap:6px"><button class="btn sm" id="prev">Previous</button><button class="btn sm" id="next">Next</button></span></div>
+      </section>
+
+      <section id="analytics" hidden style="display:flex;flex-direction:column;gap:16px">
+        <div class="agrid" id="agrid"></div>
+        <section class="card"><div class="card-h"><div><h2>Scans per hour</h2><p>Last 12 hours · orange = alerts</p></div></div><div class="card-b"><div class="hbars" id="hbars"></div></div></section>
+      </section>
+    </div>
+
+    <aside class="card detail" id="detail" aria-label="Alert detail"></aside>
   </div>
-  <p class="note">Links are shown defanged (hxxps://example[.]com) and are never opened by this portal. Refreshes every 2 seconds.</p>
-</div>
+</main>
 
+<nav class="bnav" id="bnav">
+  <a href="#overview" data-v="overview"><span data-i="grid"></span>Overview</a>
+  <a href="#scans" data-v="scans"><span data-i="list"></span>Scans</a>
+  <a href="#alerts" data-v="alerts"><span data-i="bell"></span>Alerts</a>
+  <a href="#analytics" data-v="analytics"><span data-i="chart"></span>Analytics</a>
+</nav>
+
+<script src="/static/ui.js"></script>
 <script>
-const KEY = new URLSearchParams(location.search).get("key") || "";
+const {el, api, icon, logo, withKey, TIERS, TIER, STATUS, scoreColor, fmt, fmtTime, Badge, StatusBadge, ScoreRing, ProgressBar,
+       ReasonCards, HeatmapPanel, Timeline, openModal, toast, copyText} = QG;
 const $ = id => document.getElementById(id);
-function el(tag, props, ...kids){ const e=document.createElement(tag); if(props) Object.assign(e,props); for(const k of kids) if(k!=null) e.append(k); return e; }
-function withKey(u){ return KEY ? u + (u.includes("?")?"&":"?") + "key=" + encodeURIComponent(KEY) : u; }
-async function api(path, opts={}){
-  const r = await fetch(withKey(path), {...opts, headers:{"X-QG-Key":KEY, ...(opts.headers||{})}});
-  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.status);
-  return r.json();
+document.querySelectorAll("[data-i]").forEach(n => n.append(icon(n.dataset.i, n.closest(".bnav") ? 20 : 16)));
+$("logo").append(logo(30));
+for(const id of ["exportTop", "exportA"]) $(id).href = withKey("/api/export.csv");
+
+const scans = new Map();
+let lastSeq = 0, selected = null, first = true, soundOn = false, audio = null, stats = null, devices = [], health = null;
+let view = "overview", aTab = "All", aPage = 0, tPage = 0, tSort = {k: "seq", dir: -1};
+let analyst = "Analyst"; try{ analyst = localStorage.getItem("qg-analyst") || "Analyst"; }catch(e){}
+
+/* ---------------- metrics ---------------- */
+function metricCard(icn, cls, label, value, sub, alert){
+  return el("div", {className: "card metric" + (alert ? " alert" : "")},
+    el("div", {className: "top"}, el("span", {className: "ic " + cls}, icon(icn, 14)), label),
+    el("b", {textContent: value}), el("small", null, sub));
+}
+function renderMetrics(){
+  const s = stats; if(!s) return;
+  const hour = t => [...scans.values()].filter(r => r.tier === t && Date.now() - new Date(r.at_utc) < 3600e3).length;
+  const trend = (n, t) => el("span", null, el("span", {className: "trend", textContent: (n > 0 ? "+" : "") + n}), " " + t);
+  $("metrics").replaceChildren(
+    metricCard("scan", "brand", "Total scans", s.total, trend(s.last_hour.scans, "in the last hour")),
+    metricCard("bell", "phish", "Open alerts", s.open_alerts, s.open_alerts ? "Need analyst review" : "All reviewed", s.open_alerts > 0),
+    metricCard("check", "safe", "Safe", s.tiers.Safe, trend(hour("Safe"), "last hour")),
+    metricCard("alert", "susp", "Suspicious", s.tiers.Suspicious, trend(hour("Suspicious"), "last hour")),
+    metricCard("link", "phish", "Phishing", s.tiers.Phishing, trend(hour("Phishing"), "last hour")),
+    metricCard("shield", "crit", "Critical", s.tiers.Critical, trend(hour("Critical"), "last hour")));
+  $("navCnt").hidden = !s.open_alerts; $("navCnt").textContent = s.open_alerts;
+  document.title = (s.open_alerts ? `(${s.open_alerts}) ` : "") + "QuishGuard · Security Portal";
 }
 
-const scans = new Map();   // seq -> row
-let lastSeq = 0, selected = null, alertsOnly = false, first = true, soundOn = false, audio = null;
-
-function fmtTime(iso){ const d = new Date(iso); return d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}) + (d.toDateString()!==new Date().toDateString() ? " · " + d.toLocaleDateString() : ""); }
-function chip(tier){ return el("span",{className:"chip"}, el("i",{className:"c-"+tier}), tier); }
-function num(v){ return v==null ? "–" : Number(v).toFixed(1); }
-
-function beep(tier){
-  if(!soundOn) return;
-  try{
-    audio = audio || new (window.AudioContext||window.webkitAudioContext)();
-    const tones = tier === "Critical" ? [880, 660, 880] : [740, 740];
-    tones.forEach((f,i) => {
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.frequency.value = f; o.connect(g); g.connect(audio.destination);
-      const t = audio.currentTime + i*0.22; g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.18);
-      o.start(t); o.stop(t+0.2);
-    });
-  }catch(e){}
-}
-
-function toast(row){
-  const a = row.result, d = a.decoded||{};
-  const t = el("div",{className:"toast t-"+row.tier, tabIndex:0, role:"button"},
-    el("b",{textContent:"New " + row.tier.toUpperCase() + " alert · score " + num(row.score)}),
-    el("span",{textContent:(d.text_defanged || (d.ok ? d.payload_type : "unreadable code")) + " · " + fmtTime(row.at_utc)}));
-  const open = () => { select(row.seq); t.remove(); };
-  t.addEventListener("click", open); t.addEventListener("keydown", e => { if(e.key==="Enter") open(); });
-  $("toasts").prepend(t);
-  setTimeout(() => t.remove(), 15000);
-}
-
-function renderRows(){
-  const tb = $("rows"); tb.textContent = "";
-  const list = [...scans.values()].sort((a,b) => b.seq - a.seq).filter(r => !alertsOnly || r.is_alert);
-  $("empty").hidden = list.length > 0;
-  for(const r of list){
-    const a = r.result, d = a.decoded||{}, s = a.streams||{};
-    const status = r.status === "new" ? el("span",{className:"status-new",textContent:"New alert"})
-                 : r.status === "acknowledged" ? el("span",{className:"status-acknowledged",textContent:"Acknowledged"}) : "–";
-    const tr = el("tr",{tabIndex:0},
-      el("td",{className:"nw",textContent:fmtTime(r.at_utc)}), el("td",null,chip(r.tier)), el("td",{className:"num",textContent:num(r.score)}),
-      el("td",{className:"num",textContent:num(s.url)}), el("td",{className:"num",textContent:num(s.visual)}),
-      el("td",{className:"link",title:d.text_defanged||"",textContent: d.text_defanged || (d.ok ? "("+d.payload_type+")" : "(could not read)")}),
-      el("td",{className:"nw"},status));
-    if(r.seq === selected) tr.classList.add("sel");
-    tr.addEventListener("click", () => select(r.seq));
-    tr.addEventListener("keydown", e => { if(e.key==="Enter") select(r.seq); });
-    tb.append(tr);
+/* ---------------- devices ---------------- */
+function renderDevices(){
+  const box = $("devList"); box.textContent = "";
+  const list = devices.filter(d => d.state !== "offline" || d.last_seen_s < 3600).slice(0, 3);
+  if(!list.length){ box.append(el("div", {className: "dev-row"}, el("span", {className: "ph"}, icon("phone", 20)),
+    el("div", {className: "nm"}, el("b", {textContent: "No phone connected yet"}), el("span", {textContent: "Waiting for a phone to open the scanner"})),
+    el("span", {className: "state offline"}, el("span", {className: "live-dot off"}), "Waiting"))); return; }
+  for(const d of list){
+    const state = el("span", {className: "state " + d.state}, el("span", {className: "live-dot" + (d.state === "connected" ? "" : " off")}),
+      d.state === "connected" ? "Connected" : d.state === "disconnected" ? "Disconnected" : "Offline");
+    const btn = d.state !== "disconnected" ? el("button", {className: "btn sm", textContent: "Disconnect"}) : null;
+    if(btn) btn.onclick = async () => { btn.disabled = true; try{ devices = await api(`/api/devices/${d.id}/disconnect`, {method: "POST"}); renderDevices(); }catch(e){ btn.disabled = false; } };
+    box.append(el("div", {className: "dev-row", style: {marginBottom: "8px"}}, el("span", {className: "ph"}, icon("phone", 20)),
+      el("div", {className: "nm"}, el("b", {textContent: d.name}), el("span", {textContent: `${d.scans} scan${d.scans === 1 ? "" : "s"} · seen ${d.last_seen_s < 5 ? "just now" : d.last_seen_s + "s ago"}`})),
+      state, btn));
   }
 }
+function showConnectModal(){
+  const img = el("img", {src: withKey("/connect.png"), alt: "QR code that opens the phone scanner", style: {width: "260px", height: "260px", background: "#fff", padding: "12px", borderRadius: "16px", border: "1px solid var(--border)", imageRendering: "pixelated"}});
+  openModal(el("div", {style: {padding: "24px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", textAlign: "center"}},
+    el("div", {className: "eyebrow", textContent: "Connect phone"}), el("h2", {style: {margin: 0, fontSize: "19px"}, textContent: "Scan this QR code with your phone camera"}),
+    health && health.connect_url ? img : el("p", {className: "muted", textContent: "Use the address printed in the terminal."}),
+    el("span", {className: "mono muted", style: {fontSize: "12.5px"}, textContent: health ? health.connect_url || "" : ""}),
+    el("p", {className: "muted", style: {margin: 0}, textContent: "Phone and laptop must be on the same Wi-Fi network (or the phone's hotspot)."})));
+}
 
-function select(seq){ selected = seq; renderRows(); renderDetail(); }
+/* ---------------- alert center ---------------- */
+function aList(){
+  const q = $("aSearch").value.trim().toLowerCase(), f = $("aFilter").value, s = $("aSort").value;
+  let list = [...scans.values()].filter(r => (aTab === "All" || r.tier === aTab) && (!f || r.status === f));
+  if(aTab === "All" && !f) list = list.filter(r => r.tier !== "Safe" || r.status === "false_negative");
+  if(q) list = list.filter(r => ((r.result.decoded || {}).text_defanged + " " + r.scan_id + " " + r.device).toLowerCase().includes(q));
+  const by = {new: (a, b) => b.seq - a.seq, old: (a, b) => a.seq - b.seq, high: (a, b) => b.score - a.score || b.seq - a.seq, low: (a, b) => a.score - b.score || b.seq - a.seq}[s];
+  return list.sort((a, b) => (s === "new" ? (a.status === "new" ? 0 : 1) - (b.status === "new" ? 0 : 1) : 0) || by(a, b));
+}
+function renderTabs(){
+  const counts = {All: [...scans.values()].filter(r => r.tier !== "Safe").length};
+  for(const t of TIERS) counts[t] = [...scans.values()].filter(r => r.tier === t).length;
+  $("aTabs").replaceChildren(...["All", ...TIERS].map(t => { const b = el("button", {className: "tab", role: "tab", "aria-selected": String(aTab === t)}, t, el("span", {className: "n", textContent: counts[t]}));
+    b.onclick = () => { aTab = t; aPage = 0; renderAlerts(); }; return b; }));
+}
+function renderAlerts(){
+  renderTabs();
+  const per = view === "alerts" ? 12 : 6, list = aList(), pages = Math.max(1, Math.ceil(list.length / per));
+  aPage = Math.min(aPage, pages - 1);
+  const box = $("alist"); box.textContent = "";
+  if(!list.length) box.append(el("div", {className: "empty"}, el("b", {textContent: "Nothing here"}), aTab === "All" ? "Phishing, Critical and Suspicious scans appear here." : "No " + aTab.toLowerCase() + " scans match."));
+  for(const r of list.slice(aPage * per, aPage * per + per)){
+    const d = r.result.decoded || {};
+    const row = el("button", {className: "arow " + r.tier, "aria-selected": String(r.seq === selected)},
+      el("span", {className: "sev"}),
+      el("span", {className: "vs"}, Badge(r.tier), el("small", null, el("b", {textContent: fmt(r.score, 0)}), " / 100")),
+      el("span", {className: "lk"}, el("span", {textContent: d.text_defanged || (d.ok ? "(" + d.payload_type + ")" : "(could not read)")}), el("small", {textContent: (r.device || "phone") + " · scan " + r.scan_id})),
+      el("span", {className: "tm", textContent: fmtTime(r.at_utc)}),
+      el("span", {className: "st"}, StatusBadge(r.status)), el("span", {className: "chev"}, icon("arrow", 14)));
+    row.onclick = () => select(r.seq); box.append(row);
+  }
+  const f = $("aFoot"); f.textContent = "";
+  if(view !== "alerts" && list.length > per){ const a = el("a", {href: "#alerts", className: "btn sm", textContent: `View all ${list.length} alerts`}); f.append(el("span", {textContent: `Showing ${per} of ${list.length}`}), a); }
+  else if(pages > 1){ const p = el("button", {className: "btn sm", textContent: "Previous", disabled: aPage === 0}), n = el("button", {className: "btn sm", textContent: "Next", disabled: aPage >= pages - 1});
+    p.onclick = () => { aPage--; renderAlerts(); }; n.onclick = () => { aPage++; renderAlerts(); };
+    f.append(el("span", {textContent: `Page ${aPage + 1} of ${pages} · ${list.length} events`}), el("span", {style: {display: "flex", gap: "6px"}}, p, n)); }
+  else f.append(el("span", {textContent: list.length + " event" + (list.length === 1 ? "" : "s")}));
+}
+
+/* ---------------- scans table ---------------- */
+function tList(){
+  const q = $("tSearch").value.trim().toLowerCase(), ft = $("tTier").value;
+  const val = (r, k) => k === "url" ? (r.result.streams || {}).url ?? -1 : k === "visual" ? (r.result.streams || {}).visual ?? -1 :
+                        k === "tier" ? TIERS.indexOf(r.tier) * -1 : k === "status" ? r.status : r[k];
+  return [...scans.values()].filter(r => (!ft || r.tier === ft) && (!q || ((r.result.decoded || {}).text_defanged + " " + r.scan_id + " " + r.device).toLowerCase().includes(q)))
+    .sort((a, b) => { const x = val(a, tSort.k), y = val(b, tSort.k); return (x > y ? 1 : x < y ? -1 : 0) * tSort.dir || b.seq - a.seq; });
+}
+function mb(v, muted){ const b = el("span", {className: "mb"}), i = el("i"); i.style.width = (v == null ? 0 : v) + "%"; i.style.background = muted ? "var(--faint)" : scoreColor(v); b.append(i); return b; }
+function renderTable(){
+  const per = view === "scans" ? 15 : 8, list = tList(), pages = Math.max(1, Math.ceil(list.length / per));
+  tPage = Math.min(tPage, pages - 1);
+  const tb = $("rows"); tb.textContent = "";
+  for(const r of list.slice(tPage * per, tPage * per + per)){
+    const a = r.result, d = a.decoded || {}, s = a.streams || {};
+    const tr = el("tr", {tabIndex: 0, "aria-selected": String(r.seq === selected)},
+      el("td", {"data-k": "time", textContent: fmtTime(r.at_utc)}), el("td", {"data-k": "verdict"}, Badge(r.tier)),
+      el("td", {className: "n", "data-k": "score", textContent: fmt(r.score)}),
+      el("td", {className: "n", "data-k": "link"}, fmt(s.url), mb(s.url)),
+      el("td", {className: "n", "data-k": "image"}, fmt(s.visual), mb(s.visual, a.visual_mode === "advisory")),
+      el("td", {className: "lk", title: d.text_defanged || "", textContent: d.text_defanged || (d.ok ? "(" + d.payload_type + ")" : "(could not read)")}),
+      el("td", {"data-k": "status"}, StatusBadge(r.status)));
+    tr.onclick = () => select(r.seq); tr.onkeydown = e => { if(e.key === "Enter") select(r.seq); };
+    tb.append(tr);
+  }
+  $("tEmpty").hidden = scans.size > 0;
+  $("tInfo").textContent = list.length ? `${tPage * per + 1}–${Math.min(list.length, tPage * per + per)} of ${list.length} scans` : "0 scans";
+  $("prev").disabled = tPage === 0; $("next").disabled = tPage >= pages - 1;
+}
+document.querySelectorAll("th[data-s] button").forEach(b => b.onclick = () => {
+  const th = b.parentElement, k = th.dataset.s; tSort = {k, dir: tSort.k === k ? -tSort.dir : -1};
+  document.querySelectorAll("th[data-s]").forEach(x => { x.removeAttribute("aria-sort"); x.querySelector(".ar").textContent = "↕"; });
+  th.setAttribute("aria-sort", tSort.dir < 0 ? "descending" : "ascending"); th.querySelector(".ar").textContent = tSort.dir < 0 ? "↓" : "↑";
+  renderTable();
+});
+$("prev").onclick = () => { tPage--; renderTable(); }; $("next").onclick = () => { tPage++; renderTable(); };
+
+/* ---------------- detail ---------------- */
+function select(seq){ selected = seq; renderAlerts(); renderTable(); renderDetail(); document.body.classList.add("drawer"); }
+function closeDrawer(){ document.body.classList.remove("drawer"); }
+document.body.addEventListener("click", e => { if(document.body.classList.contains("drawer") && e.target === document.body) closeDrawer(); });
 
 function renderDetail(){
   const box = $("detail"); box.textContent = "";
-  const r = scans.get(selected); if(!r){ box.append(el("p",{className:"note",textContent:"Select a scan to see its alert."})); return; }
-  const a = r.result, d = a.decoded||{}, s = a.streams||{};
-  box.append(el("div",{className:"verdict c-"+r.tier}, el("b",{textContent:r.tier}), el("span",{textContent:"Score " + num(r.score) + " / 100"})));
-  const dl = el("dl");
-  const add = (k,v) => dl.append(el("dt",{textContent:k}), el("dd",{textContent:v}));
-  add("Time", fmtTime(r.at_utc)); add("Scan", r.scan_id + (r.device ? " · " + r.device : ""));
-  add("Action", a.recommended_action || ""); add("Rule", a.fusion_rule || "");
-  add("Link score", num(s.url)); add("Image score", num(s.visual) + (a.visual_tampered ? " (tampering found)" : ""));
-  add("Payload", d.ok ? d.payload_type : "could not be read");
-  box.append(dl);
-  if(d.text_defanged) box.append(el("div",{className:"mono",textContent:d.text_defanged}));
-  if(a.reasons && a.reasons.length){ const ul = el("ul"); for(const t of a.reasons) ul.append(el("li",{textContent:t})); box.append(ul); }
-  const imgs = el("div",{className:"imgs"});
-  if(a.photo) imgs.append(el("figure",null, el("img",{src:withKey(a.photo),alt:"Scanned photo"}), el("figcaption",{textContent:"Scanned photo"})));
-  if(a.heatmap) imgs.append(el("figure",null, el("img",{src:withKey(a.heatmap),alt:"Tamper heatmap"}), el("figcaption",{textContent:"Tamper heatmap (red = unusual)"})));
-  box.append(imgs);
-  if(r.status === "new"){
-    const b = el("button",{className:"primary",textContent:"Acknowledge alert"});
-    b.addEventListener("click", async () => { try{ const u = await api("/api/scans/"+r.seq+"/ack",{method:"POST"}); scans.set(u.seq,u); renderRows(); renderDetail(); refreshStats(); }catch(e){ b.textContent = "Could not acknowledge: " + e.message; } });
-    box.append(b);
-  }
-  const json = el("pre",{textContent:JSON.stringify(a, null, 2)});
-  box.append(el("details",null, el("summary",{textContent:"Alert JSON (for the group aggregator)"}), json));
+  const r = scans.get(selected);
+  if(!r){ box.append(el("div", {className: "empty", style: {padding: "48px 24px"}}, el("div", {style: {display: "grid", placeItems: "center", marginBottom: "10px", color: "var(--faint)"}}, icon("shield", 34, 1.5)),
+    el("b", {textContent: "Select an alert"}), "Choose an alert or scan to see its security analysis.")); return; }
+  const a = r.result, d = a.decoded || {}, s = a.streams || {}, t = TIER[r.tier], advisory = a.visual_mode === "advisory";
+  const idx = TIERS.slice().reverse().indexOf(r.tier);
+  const scale = el("div", {className: "sevscale"}, ["Safe", "Suspicious", "Phishing", "Critical"].map((n, i) => { const x = el("i"); if(i <= idx){ x.style.background = TIER[n].color; x.style.borderColor = "transparent"; } return x; }));
+  const close = el("button", {className: "btn icon ghost dclose", "aria-label": "Close"}, icon("x", 16)); close.onclick = closeDrawer;
+  box.append(el("div", {className: "sec"},
+    el("div", {style: {display: "flex", justifyContent: "space-between", alignItems: "center"}}, el("h3", {textContent: "Alert detail"}), close),
+    el("div", {className: "dhead"}, ScoreRing(r.score, r.tier, 96, {label: false}),
+      el("div", null, el("div", {className: "tt", style: {color: "var(--muted)"}, textContent: "Verdict"}), el("h2", {style: {color: t.color}, textContent: t.title}),
+        el("div", {className: "muted", style: {fontVariantNumeric: "tabular-nums"}}, "Score ", el("b", {style: {color: "var(--ink)"}, textContent: fmt(r.score, 0) + " / 100"})),
+        el("div", {style: {fontWeight: 600}, textContent: a.recommended_action || t.head}))),
+    el("div", null, scale, el("div", {className: "sevscale-l"}, ["Safe", "Suspicious", "Phishing", "Critical"].map(n => el("span", {textContent: n}))))));
+
+  box.append(el("div", {className: "sec"}, el("h3", {textContent: "Security checks"}),
+    ProgressBar("Link check", s.url, {tag: a.tranco_rank ? "Popular platform · rank " + a.tranco_rank.toLocaleString() : null}),
+    a.url_score_model != null && a.url_score_model !== s.url ? ProgressBar("Link model (before platform check)", a.url_score_model, {muted: true}) : null,
+    ProgressBar("Code image check", s.visual, {tag: advisory ? "Advisory" : (a.visual_tampered ? "Tampering found" : null), muted: advisory})));
+
+  const inside = el("div", {className: "sec"}, el("div", {style: {display: "flex", justifyContent: "space-between", alignItems: "center"}}, el("h3", {textContent: "Inside the QR code"}),
+    el("span", {className: "badge b-brand", textContent: d.ok ? (d.payload_type || "text") : "unreadable"})));
+  if(d.text_defanged){ const cp = el("button", {className: "btn sm"}, icon("copy", 14), el("span", {textContent: "Copy safe URL"})); cp.onclick = () => copyText(d.text_defanged, cp);
+    inside.append(el("div", {className: "safelink", textContent: d.text_defanged}), el("div", null, cp)); }
+  else inside.append(el("p", {className: "muted", style: {margin: 0}, textContent: d.ok ? "No web link in this code." : "The code could not be read."}));
+  box.append(inside);
+
+  box.append(el("div", {className: "sec"}, el("h3", {textContent: r.tier === "Safe" ? "Why this looks safe" : "Why this was flagged"}), ReasonCards(a.reasons, r.tier)));
+  if(a.photo || a.heatmap) box.append(el("div", {className: "sec"}, el("h3", {textContent: "QR image analysis"}), HeatmapPanel(a.photo, a.heatmap, advisory)));
+
+  const tl = [{title: "Scanned", text: fmtTime(r.at_utc, true) + " · " + (r.device || "phone")}, {title: "Analysis completed", text: Math.round(a.latency_ms || 0) + " ms"}];
+  if(r.is_alert) tl.push({title: r.tier + " alert raised", text: fmtTime(r.at_utc), kind: "alert"});
+  if(r.is_alert || r.status === "false_negative") tl.push(r.status === "new" ? {title: "Analyst review", text: "Pending", kind: "pending"}
+    : {title: STATUS[r.status], text: (r.status_at ? fmtTime(r.status_at, true) : "") + (r.note ? " · " + r.note : "")});
+  box.append(el("div", {className: "sec"}, el("h3", {textContent: "Timeline"}), Timeline(tl)));
+
+  const note = el("textarea", {className: "note", placeholder: "Add a note...", value: ""});
+  const acts = el("div", {className: "acts"});
+  const act = (label, status, cls) => { const b = el("button", {className: "btn " + (cls || ""), textContent: label});
+    b.onclick = async () => { b.disabled = true; const txt = note.value.trim(); try{
+      const u = await api(`/api/scans/${r.seq}/status`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({status, note: txt ? `${analyst}: ${txt}` : `${analyst}`})});
+      scans.set(u.seq, u); renderAll(); refreshStats(); }catch(e){ b.disabled = false; b.textContent = e.message; } }; acts.append(b); };
+  if(r.is_alert){
+    if(r.status === "new"){ act("Acknowledge", "acknowledged", "primary"); act("Resolve", "resolved"); act("False positive", "false_positive", "danger"); }
+    else { if(r.status !== "resolved") act("Resolve", "resolved", "primary"); if(r.status !== "false_positive") act("False positive", "false_positive", "danger"); act("Reopen", "new"); }
+  } else { if(r.status !== "false_negative") act("Mark as missed attack", "false_negative", "danger"); else act("Undo", "none"); }
+  box.append(el("div", {className: "sec"}, el("h3", {textContent: "Analyst actions"}), note, acts));
+
+  box.append(el("div", {className: "sec"}, el("dl", {className: "dmeta"}, el("dt", {textContent: "Scan ID"}), el("dd", {className: "mono", textContent: r.scan_id}),
+      el("dt", {textContent: "Fusion rule"}), el("dd", {textContent: a.fusion_rule || "–"})),
+    el("details", {className: "json"}, el("summary", {textContent: "Alert JSON (for the group aggregator)"}), el("pre", {textContent: JSON.stringify(a, null, 2)}))));
 }
 
-async function refreshStats(){
-  const st = await api("/api/stats");
-  $("sTotal").textContent = st.total; $("sOpen").textContent = st.open_alerts;
-  for(const t of ["Safe","Suspicious","Phishing","Critical"]) $("s"+t).textContent = st.tiers[t];
-  document.title = (st.open_alerts ? "(" + st.open_alerts + ") " : "") + "QuishGuard Alert Portal";
+/* ---------------- analytics ---------------- */
+function renderAnalytics(){
+  if(!stats) return; const s = stats, total = s.total || 0, alerts = s.tiers.Phishing + s.tiers.Critical;
+  const pct = n => total ? Math.round(100 * n / total) + "%" : "–";
+  const dist = el("div", {className: "dist"}, TIERS.slice().reverse().map(t => { const i = el("i", {title: t}); i.style.width = (total ? 100 * s.tiers[t] / total : 0) + "%"; i.style.background = TIER[t].color; return i; }));
+  const dl = el("div", {className: "dl"}, TIERS.slice().reverse().flatMap(t => { const sw = el("span", {className: "sw"}); sw.style.background = TIER[t].color;
+    return [sw, el("span", {textContent: t}), el("b", {className: "num", textContent: s.tiers[t]}), el("span", {className: "muted num", textContent: pct(s.tiers[t])})]; }));
+  const reviewed = s.status.acknowledged + s.status.resolved + s.status.false_positive;
+  const card = (title, big, sub, extra) => el("section", {className: "card"}, el("div", {className: "card-b", style: {display: "flex", flexDirection: "column", gap: "10px"}},
+    el("div", {className: "eyebrow", textContent: title}), big != null ? el("div", {className: "big", textContent: big}) : null, sub ? el("div", {className: "muted", textContent: sub}) : null, extra));
+  $("agrid").replaceChildren(
+    card("Verdict mix", null, null, el("div", {style: {display: "flex", flexDirection: "column", gap: "12px"}}, dist, dl)),
+    card("Alert rate", pct(alerts), `${alerts} of ${total} scans raised a Phishing or Critical alert`),
+    card("Median processing time", s.median_latency_ms == null ? "–" : Math.round(s.median_latency_ms) + " ms", "Decode + link check + image analysis, last 50 scans"),
+    card("Open alerts", String(s.open_alerts), `${reviewed} reviewed by an analyst`),
+    card("False positives", String(s.status.false_positive), alerts ? `${Math.round(100 * s.status.false_positive / alerts)}% of alerts marked false positive by analysts` : "No alerts yet"),
+    card("Missed attacks", String(s.status.false_negative), "Scans without an alert that analysts marked as attacks"));
+  const now = Date.now(), bars = [];
+  for(let h = 11; h >= 0; h--){ const from = now - (h + 1) * 3600e3, to = now - h * 3600e3;
+    const in_ = [...scans.values()].filter(r => { const t = new Date(r.at_utc).getTime(); return t >= from && t < to; });
+    bars.push({n: in_.length, a: in_.filter(r => r.is_alert).length, lab: new Date(to).getHours() + ":00"}); }
+  const mx = Math.max(1, ...bars.map(b => b.n));
+  $("hbars").replaceChildren(...bars.map(b => { const bar = el("span", {className: "b", title: `${b.n} scans, ${b.a} alerts`}); bar.style.height = (100 * b.n / mx) + "%";
+    const al = el("span", {className: "a"}); al.style.height = (b.n ? 100 * b.a / b.n : 0) + "%"; bar.append(al);
+    return el("div", null, bar, el("small", {textContent: b.lab})); }));
 }
 
+/* ---------------- views ---------------- */
+const TITLES = {overview: ["Overview", "Live QR phishing activity across connected phones."], scans: ["Scans", "Every QR code checked by QuishGuard."],
+                alerts: ["Alerts", "Security events that need an analyst."], analytics: ["Analytics", "How QuishGuard is performing."]};
+function setView(v){
+  view = TITLES[v] ? v : "overview"; aPage = tPage = 0;
+  document.querySelectorAll("[data-v]").forEach(a => a.setAttribute("aria-current", a.dataset.v === view ? "page" : "false"));
+  [$("pageTitle").textContent, $("pageSub").textContent] = TITLES[view];
+  $("metrics").hidden = view !== "overview" && view !== "analytics";
+  $("devicePanel").hidden = view !== "overview";
+  $("alertCenter").hidden = view === "scans" || view === "analytics";
+  $("scanTable").hidden = view === "alerts" || view === "analytics";
+  $("analytics").hidden = view !== "analytics"; $("detail").hidden = view === "analytics";
+  $("work").style.gridTemplateColumns = view === "analytics" ? "1fr" : "";
+  renderAll(); window.scrollTo({top: 0});
+}
+window.addEventListener("hashchange", () => setView(location.hash.slice(1)));
+function renderAll(){ renderMetrics(); renderAlerts(); renderTable(); renderDetail(); if(view === "analytics") renderAnalytics(); }
+for(const id of ["aSearch", "aFilter", "aSort"]) $(id).addEventListener("input", () => { aPage = 0; renderAlerts(); });
+for(const id of ["tSearch", "tTier"]) $(id).addEventListener("input", () => { tPage = 0; renderTable(); });
+document.addEventListener("keydown", e => { if(e.key === "/" && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)){ e.preventDefault(); (view === "scans" ? $("tSearch") : $("aSearch")).focus(); }
+  if(e.key === "Escape") closeDrawer(); });
+
+/* ---------------- header controls ---------------- */
+function setSoundBtn(){ const b = $("sound"); b.replaceChildren(icon(soundOn ? "bell" : "belloff", 16)); b.setAttribute("aria-pressed", soundOn); b.setAttribute("aria-label", soundOn ? "Alert sound on" : "Alert sound off"); }
+setSoundBtn();
+$("sound").onclick = () => { soundOn = !soundOn; setSoundBtn(); if(soundOn) beep("Phishing"); };
+$("connectBtn").onclick = showConnectModal;
+function renderMenu(){
+  const m = $("menu"); m.textContent = "";
+  const input = el("input", {value: analyst, className: "select", style: {width: "100%", backgroundImage: "none", padding: "0 10px"}, "aria-label": "Analyst name"});
+  input.onchange = () => { analyst = input.value.trim() || "Analyst"; try{ localStorage.setItem("qg-analyst", analyst); }catch(e){} $("avatar").textContent = analyst[0].toUpperCase(); };
+  m.append(el("div", {className: "mh", textContent: "Signed in on this laptop as"}), el("div", {style: {padding: "0 10px 8px"}}, input),
+    el("div", {className: "mh", textContent: "Your name is added to analyst notes."}), el("hr"),
+    el("div", {className: "mh", textContent: "Access key: " + (health && health.key_required ? "required" : "not set (anyone on this Wi-Fi can open the portal)")}),
+    el("div", {className: "mh", textContent: "Shortcuts: / search · Esc close panel"}));
+}
+$("avatar").textContent = analyst[0].toUpperCase();
+$("avatar").onclick = e => { e.stopPropagation(); const m = $("menu"), open = m.hidden; renderMenu(); m.hidden = !open; $("avatar").setAttribute("aria-expanded", open); };
+document.addEventListener("click", e => { if(!$("menu").contains(e.target)) { $("menu").hidden = true; $("avatar").setAttribute("aria-expanded", "false"); } });
+
+function beep(tier){
+  if(!soundOn) return;
+  try{ audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    (tier === "Critical" ? [880, 660, 880] : [740, 740]).forEach((f, i) => { const o = audio.createOscillator(), g = audio.createGain(); o.frequency.value = f; o.connect(g); g.connect(audio.destination);
+      const t = audio.currentTime + i * .22; g.gain.setValueAtTime(.16, t); g.gain.exponentialRampToValueAtTime(.001, t + .18); o.start(t); o.stop(t + .2); }); }catch(e){}
+}
+
+/* ---------------- live polling ---------------- */
+async function refreshStats(){ stats = await api("/api/stats"); renderMetrics(); if(view === "analytics") renderAnalytics(); }
+async function refreshDevices(){ try{ devices = await api("/api/devices"); renderDevices(); }catch(e){} }
 async function poll(){
   try{
-    const fresh = await api("/api/scans?since=" + lastSeq + "&limit=" + (first ? 200 : 100));
-    fresh.sort((a,b) => a.seq - b.seq);
-    for(const r of fresh){
-      scans.set(r.seq, r); lastSeq = Math.max(lastSeq, r.seq);
-      if(!first && r.is_alert){ toast(r); beep(r.tier); }
-      if(!first && selected == null) selected = r.seq;
-    }
-    if(fresh.length || first) renderRows();
-    if(fresh.length && !first) renderDetail();
-    await refreshStats();
-    first = false;
+    const fresh = await api(`/api/scans?since=${lastSeq}&limit=${first ? 500 : 100}`);
+    fresh.sort((a, b) => a.seq - b.seq);
+    for(const r of fresh){ scans.set(r.seq, r); lastSeq = Math.max(lastSeq, r.seq);
+      if(!first && r.is_alert){ const d = r.result.decoded || {};
+        toast(`New ${r.tier} alert · ${fmt(r.score, 0)}/100`, (d.text_defanged || "unreadable code") + " · " + fmtTime(r.at_utc), r.tier, () => select(r.seq)); beep(r.tier);
+        if(selected == null || !document.activeElement || document.activeElement.tagName !== "TEXTAREA") selected = r.seq; } }
+    if(fresh.length || first){ renderAlerts(); renderTable(); renderDetail(); }
+    await refreshStats(); first = false;
     $("dot").classList.remove("off"); $("liveText").textContent = "Live";
-  }catch(e){
-    $("dot").classList.add("off"); $("liveText").textContent = "Server not reachable (" + e.message + ")";
-  }
+  }catch(e){ $("dot").classList.add("off"); $("liveText").textContent = "Offline"; }
   setTimeout(poll, 2000);
 }
-
-$("sound").addEventListener("click", e => {
-  soundOn = !soundOn; e.currentTarget.setAttribute("aria-pressed", soundOn); e.currentTarget.textContent = soundOn ? "Sound on" : "Sound off";
-  if(soundOn){ beep("Phishing"); }
-});
-for(const [id, only] of [["fAll",false],["fAlerts",true]]){
-  $(id).addEventListener("click", () => { alertsOnly = only; $("fAll").setAttribute("aria-pressed", !only); $("fAlerts").setAttribute("aria-pressed", only); renderRows(); });
-}
-poll();
+(async () => {
+  try{ health = await api("/api/health"); if(health.connect_url){ $("qrImg").src = withKey("/connect.png"); $("qrUrl").textContent = health.connect_url; } else { $("qrImg").hidden = true; $("qrUrl").textContent = "Use the address shown in the terminal"; } }catch(e){}
+  setView(location.hash.slice(1) || "overview"); refreshDevices(); setInterval(refreshDevices, 4000); poll();
+})();
 </script>
 </body>
 </html>

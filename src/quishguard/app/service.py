@@ -49,6 +49,9 @@ class ScanService:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         with self._lock:
             result = self.scanner.scan(gray, heatmap_path=heat, explain=True, photo=True)
+        if result.get("no_code"):
+            raise BadImage("No QR code found in this photo. Hold the phone closer so the code fills most of the "
+                           "picture, keep it sharp, and avoid glare.")
         _save_small(img, self.scans_dir / f"{scan_id}.jpg")
 
         result = dict(result)

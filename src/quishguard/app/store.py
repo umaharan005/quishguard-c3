@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ALERT_TIERS = ("Phishing", "Critical")
@@ -33,6 +33,11 @@ class ScanStore:
         self._db = sqlite3.connect(str(self.path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(_SCHEMA)
+        cols = {r[1] for r in self._db.execute("PRAGMA table_info(scans)")}
+        for col in ("status_at", "note"):                     # added later: migrate old databases
+            if col not in cols:
+                self._db.execute(f"ALTER TABLE scans ADD COLUMN {col} TEXT")
+        self._db.commit()
 
     def add(self, scan_id: str, result: dict, device: str = "") -> dict:
         is_alert = result["tier"] in ALERT_TIERS
@@ -60,23 +65,53 @@ class ScanStore:
         return self._out(dict(r)) if r else None
 
     def acknowledge(self, seq: int) -> bool:
+        return self.set_status(seq, "acknowledged")
+
+    # analyst workflow. Alerts: new -> acknowledged -> resolved, or false_positive.
+    # Non-alerts: none, or false_negative (the analyst says it was really an attack).
+    ALERT_STATUSES = {"new", "acknowledged", "resolved", "false_positive"}
+    OTHER_STATUSES = {"none", "false_negative"}
+
+    def set_status(self, seq: int, status: str, note: str = "") -> bool:
+        row = self.get(seq)
+        if row is None:
+            return False
+        allowed = self.ALERT_STATUSES if row["is_alert"] else self.OTHER_STATUSES
+        if status not in allowed:
+            return False
         with self._lock:
-            cur = self._db.execute("UPDATE scans SET status = 'acknowledged' WHERE seq = ? AND is_alert = 1",
-                                   (int(seq),))
+            self._db.execute("UPDATE scans SET status = ?, status_at = ?, note = ? WHERE seq = ?",
+                             (status, datetime.now(timezone.utc).isoformat(timespec="seconds"), (note or "")[:300], int(seq)))
             self._db.commit()
-        return cur.rowcount == 1
+        return True
+
+    def all_rows(self) -> list[dict]:
+        with self._lock:
+            rows = self._db.execute("SELECT * FROM scans ORDER BY seq").fetchall()
+        return [self._out(dict(r)) for r in rows]
 
     def stats(self) -> dict:
         with self._lock:
             tiers = dict(self._db.execute("SELECT tier, COUNT(*) FROM scans GROUP BY tier").fetchall())
             open_alerts = self._db.execute("SELECT COUNT(*) FROM scans WHERE is_alert = 1 AND status = 'new'").fetchone()[0]
             total = self._db.execute("SELECT COUNT(*) FROM scans").fetchone()[0]
+            status = dict(self._db.execute("SELECT status, COUNT(*) FROM scans GROUP BY status").fetchall())
+            since = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds")
+            last_hour = self._db.execute("SELECT COUNT(*), COALESCE(SUM(is_alert),0) FROM scans WHERE at_utc >= ?",
+                                         (since,)).fetchone()
+            lat = [json.loads(r[0]).get("latency_ms") for r in
+                   self._db.execute("SELECT result FROM scans ORDER BY seq DESC LIMIT 50").fetchall()]
+        lat = sorted(x for x in lat if isinstance(x, (int, float)))
         return {"total": total, "open_alerts": open_alerts,
-                "tiers": {t: tiers.get(t, 0) for t in ("Safe", "Suspicious", "Phishing", "Critical")}}
+                "tiers": {t: tiers.get(t, 0) for t in ("Safe", "Suspicious", "Phishing", "Critical")},
+                "status": {k: status.get(k, 0) for k in ("new", "acknowledged", "resolved", "false_positive", "false_negative")},
+                "last_hour": {"scans": last_hour[0], "alerts": int(last_hour[1])},
+                "median_latency_ms": lat[len(lat) // 2] if lat else None}
 
     @staticmethod
     def _out(row: dict) -> dict:
         res = row["result"] if isinstance(row["result"], dict) else json.loads(row["result"])
         return {"seq": row["seq"], "scan_id": row["scan_id"], "at_utc": row["at_utc"], "device": row["device"],
                 "tier": row["tier"], "score": row["score"], "is_alert": bool(row["is_alert"]),
-                "status": row["status"], "result": res}
+                "status": row["status"], "status_at": row.get("status_at"), "note": row.get("note") or "",
+                "result": res}

@@ -3,144 +3,447 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>QuishGuard Scan</title>
+<meta name="theme-color" content="#0B6B5C">
+<title>QuishGuard · QR Security</title>
+<link rel="stylesheet" href="/static/ui.css">
 <style>
-:root{
-  --bg:#F3F5F2; --surface:#FFFFFF; --sunk:#E8ECE7; --ink:#15201B; --muted:#56635C; --line:#CBD3CD;
-  --accent:#17665A; --accent-ink:#FFFFFF;
-  --safe:#2F7D4F; --susp:#A87A00; --phish:#C0571A; --crit:#AE2A22;
-  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --mono:ui-monospace,Menlo,Consolas,monospace;
-}
-@media (prefers-color-scheme: dark){
-  :root{--bg:#0F1512;--surface:#161E1A;--sunk:#1D2722;--ink:#E4EBE6;--muted:#9AA8A0;--line:#2F3B35;
-        --accent:#5CC2AE;--accent-ink:#0F1512;--safe:#5FBF83;--susp:#E0B437;--phish:#EE8A4F;--crit:#F0736A}
-}
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);
-     padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
-.wrap{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
-header{display:flex;justify-content:space-between;align-items:baseline}
-.brand{font-weight:800;font-size:20px;letter-spacing:-.01em}
-.sub{color:var(--muted);font-size:13px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
-.btn{display:flex;align-items:center;justify-content:center;gap:10px;min-height:56px;border-radius:10px;border:0;
-     background:var(--accent);color:var(--accent-ink);font:600 17px var(--body);cursor:pointer;width:100%}
-.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);min-height:48px;font-size:15px}
-.btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+:root{--nav-h:64px;--scan-green:#2EE59D}
+html,body{overflow-x:clip}
+body{font-size:15px;padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));min-height:100vh}
+body.has-sticky{padding-bottom:calc(var(--nav-h) + 84px + env(safe-area-inset-bottom))}
+[data-i]{display:inline-flex;align-items:center}
+.app{max-width:520px;margin:0 auto;display:flex;flex-direction:column;min-height:calc(100vh - var(--nav-h))}
+.page{padding:0 16px 20px;display:flex;flex-direction:column;gap:14px}
+
+/* ---------- header ---------- */
+.bar{display:flex;align-items:center;gap:10px;padding:max(14px,env(safe-area-inset-top)) 16px 10px;position:relative;z-index:2}
+.bar .name{display:flex;flex-direction:column;line-height:1.1}
+.bar .name b{font-size:18px;font-weight:750;letter-spacing:-.015em;color:var(--brand)}
+.bar .name span{font-size:12.5px;color:var(--muted);font-weight:500}
+.bar .menu-btn{margin-left:auto;position:relative;width:44px;height:44px;border:0;background:none;color:var(--ink);display:grid;place-items:center;border-radius:12px;cursor:pointer}
+.bar .menu-btn:hover{background:var(--surface-2)}
+.bar .menu-btn .d{position:absolute;top:10px;right:9px;width:9px;height:9px;border-radius:50%;background:var(--phish);border:2px solid var(--bg)}
+.pagetitle{padding:4px 16px 12px}
+.pagetitle h1{margin:0;font-size:24px;font-weight:750;letter-spacing:-.02em}
+.pagetitle p{margin:4px 0 0;color:var(--muted);font-size:14px}
+
+/* ---------- home ---------- */
+.homewrap{position:relative;flex:1}
+.homewrap::before{content:"";position:absolute;inset:-80px 0 auto;height:420px;z-index:0;pointer-events:none;
+  background:radial-gradient(60% 55% at 20% 30%,color-mix(in srgb,var(--brand) 9%,transparent),transparent 70%),
+             radial-gradient(55% 50% at 85% 20%,color-mix(in srgb,var(--brand) 11%,transparent),transparent 70%),
+             radial-gradient(90% 60% at 50% 60%,color-mix(in srgb,var(--brand) 6%,transparent),transparent 75%)}
+.wave{position:absolute;left:0;top:40px;width:100%;height:200px;-webkit-mask-image:linear-gradient(#000 40%,transparent);mask-image:linear-gradient(#000 40%,transparent);z-index:0;pointer-events:none;color:var(--brand);opacity:.07}
+.hero{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;padding:6px 20px 8px}
+.emblem{width:132px;height:132px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle,color-mix(in srgb,var(--brand) 14%,var(--surface)) 0 58%,color-mix(in srgb,var(--brand) 7%,transparent) 59% 100%);
+  box-shadow:0 0 0 14px color-mix(in srgb,var(--brand) 5%,transparent)}
+.emblem svg{filter:drop-shadow(0 8px 14px color-mix(in srgb,var(--brand) 35%,transparent))}
+.hero h1{margin:6px 0 0;font-size:29px;line-height:1.15;letter-spacing:-.025em;font-weight:780}
+.hero p{margin:0;color:var(--muted);font-size:15px;max-width:30ch;line-height:1.5}
+.cta{position:relative;z-index:1;display:flex;flex-direction:column;gap:12px;padding:10px 20px 0}
+.cta .btn{height:54px;font-size:16px;border-radius:14px;gap:10px;width:100%}
+.btn.outline{background:var(--surface);border:1.5px solid color-mix(in srgb,var(--brand) 45%,var(--border));color:var(--brand)}
+.btn.outline:hover{background:var(--brand-soft)}
+.features{position:relative;z-index:1;margin:22px 16px 0;padding:18px 8px;border-radius:18px;background:var(--surface-2);border:1px solid var(--border);
+  display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.feat{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;font-size:12px;font-weight:600;color:var(--ink-2);line-height:1.25}
+.feat .ic{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;color:var(--brand);background:var(--surface);border:1px solid color-mix(in srgb,var(--brand) 25%,var(--border))}
+.banner{display:flex;align-items:center;gap:10px;margin:0 16px 12px;padding:12px 14px;border-radius:12px;background:var(--susp-soft);color:var(--susp-ink);font-weight:600;font-size:13.5px;position:relative;z-index:2}
+.banner .btn{margin-left:auto;flex:none}
+
+/* ---------- bottom nav ---------- */
+.bnav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-top:1px solid var(--border);
+  padding:0 8px env(safe-area-inset-bottom);box-shadow:0 -6px 20px rgba(16,24,40,.05)}
+.bnav .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);height:var(--nav-h)}
+.bnav button{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11.5px;font-weight:600;color:var(--muted);position:relative;-webkit-tap-highlight-color:transparent}
+.bnav button[aria-current="page"]{color:var(--brand)}
+.bnav button[aria-current="page"] svg{stroke-width:2.4}
+.bnav button:focus-visible{outline:2px solid var(--brand);outline-offset:-4px;border-radius:12px}
+.bnav .cnt{position:absolute;top:7px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--phish);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;border:2px solid var(--surface)}
+.sticky{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));padding:10px 16px 12px;background:linear-gradient(transparent,var(--bg) 35%);z-index:20}
+.sticky .in{max-width:520px;margin:0 auto}
+.sticky .btn{width:100%;height:52px;font-size:16px;border-radius:14px;gap:10px}
 input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.hint{color:var(--muted);font-size:14px;margin:0}
-#preview{width:100%;max-height:280px;object-fit:contain;border-radius:8px;background:var(--sunk)}
-.busy{display:flex;align-items:center;gap:12px;color:var(--muted)}
-.spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 0.8s linear infinite}
-@keyframes s{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.spin{animation:none}}
-.verdict{border-radius:10px;padding:16px;color:#fff;display:flex;flex-direction:column;gap:4px}
-.verdict .tier{font-size:28px;font-weight:800;line-height:1.1}
-.verdict .score{font-variant-numeric:tabular-nums;font-size:15px;opacity:.95}
-.t-Safe{background:var(--safe)} .t-Suspicious{background:var(--susp)} .t-Phishing{background:var(--phish)} .t-Critical{background:var(--crit)}
-@media (prefers-color-scheme: dark){.verdict{color:#0F1512}}
-.warn{border-left:4px solid var(--crit);padding:8px 12px;background:var(--sunk);border-radius:0 6px 6px 0;font-size:14px;font-weight:600}
-dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px}
-dt{color:var(--muted)} dd{margin:0;overflow-wrap:anywhere}
-.link{font-family:var(--mono);font-size:13px;background:var(--sunk);padding:8px 10px;border-radius:6px;overflow-wrap:anywhere;user-select:all}
-ul.reasons{margin:0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:4px}
-.imgs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.imgs figure{margin:0;display:flex;flex-direction:column;gap:4px}
-.imgs img{width:100%;aspect-ratio:1;object-fit:contain;background:var(--sunk);border-radius:6px}
-.imgs figcaption{font-size:12px;color:var(--muted)}
-.err{color:var(--crit);font-weight:600}
-h2{font-size:15px;margin:0}
-.stack{display:flex;flex-direction:column;gap:12px}
+
+/* ---------- camera ---------- */
+.cam{position:fixed;inset:0;background:#05090A;z-index:60;color:#fff;overflow:hidden}
+.cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cam::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(rgba(0,0,0,.55),transparent 22%,transparent 58%,rgba(0,0,0,.78))}
+.cam .top{position:absolute;top:0;left:0;right:0;z-index:2;padding:max(12px,env(safe-area-inset-top)) 10px 12px;display:grid;grid-template-columns:48px 1fr 48px;align-items:center}
+.cam .top .t{display:flex;align-items:center;justify-content:center;gap:9px}
+.cam .top .t b{display:block;font-size:16px;font-weight:700;line-height:1.1}
+.cam .top .t span{display:block;font-size:11.5px;opacity:.75;line-height:1.2}
+.cambtn{all:unset;cursor:pointer;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:#fff}
+.cambtn:hover,.cambtn[aria-pressed="true"]{background:rgba(255,255,255,.14)}
+.cambtn[hidden]{display:none}
+.viewfinder{position:absolute;left:50%;top:42%;width:min(66vw,280px);aspect-ratio:1;transform:translate(-50%,-50%);z-index:1}
+.vf-c{position:absolute;width:44px;height:44px;border:4px solid var(--scan-green);filter:drop-shadow(0 0 6px rgba(46,229,157,.75))}
+.vf-c.tl{top:0;left:0;border-right:0;border-bottom:0;border-top-left-radius:16px}
+.vf-c.tr{top:0;right:0;border-left:0;border-bottom:0;border-top-right-radius:16px}
+.vf-c.bl{bottom:0;left:0;border-right:0;border-top:0;border-bottom-left-radius:16px}
+.vf-c.br{bottom:0;right:0;border-left:0;border-top:0;border-bottom-right-radius:16px}
+.laser{position:absolute;left:-18%;right:-18%;height:2px;top:8%;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--scan-green) 18%,#B8FFE2 50%,var(--scan-green) 82%,transparent);
+  box-shadow:0 0 18px 4px rgba(46,229,157,.55);animation:laser 2s ease-in-out infinite alternate}
+@keyframes laser{to{top:92%}}
+.viewfinder.found .vf-c{border-color:#fff}
+.cam .hint{position:absolute;left:0;right:0;z-index:2;top:calc(42% + min(33vw,140px) + 28px);display:flex;flex-direction:column;align-items:center;gap:12px;padding:0 24px;text-align:center}
+.cam .hint b{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:650;white-space:nowrap}
+.cam .hint small{display:flex;align-items:flex-start;gap:8px;font-size:13px;opacity:.82;max-width:32ch;text-align:left}
+.cam .ctl{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:16px 28px calc(24px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
+.shutter{width:72px;height:72px;border-radius:50%;border:4px solid rgba(255,255,255,.9);background:transparent;cursor:pointer;display:grid;place-items:center;padding:0}
+.shutter::after{content:"";width:54px;height:54px;border-radius:50%;background:#fff;transition:transform var(--t)}
+.shutter:active::after{transform:scale(.88)}
+.ghostbtn{justify-self:start;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:14px;height:46px;padding:0 14px;font-weight:600;display:inline-flex;align-items:center;gap:8px;cursor:pointer;backdrop-filter:blur(6px)}
+.autotag{justify-self:end;font-size:11.5px;font-weight:600;opacity:.8;display:flex;align-items:center;gap:6px}
+.autotag i{width:7px;height:7px;border-radius:50%;background:var(--scan-green);box-shadow:0 0 8px var(--scan-green)}
+
+/* ---------- analysing ---------- */
+.analyse{padding:16px;display:flex;flex-direction:column;gap:16px}
+.shot{position:relative;border-radius:16px;overflow:hidden;background:#0B1110;aspect-ratio:1}
+.shot img{width:100%;height:100%;object-fit:cover;opacity:.85}
+.shot .viewfinder{top:50%;width:70%}
+.shot .laser{left:-8%;right:-8%}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.steps li{display:flex;align-items:center;gap:10px;color:var(--faint);font-weight:550;transition:color var(--t)}
+.steps li i{width:20px;height:20px;border-radius:50%;border:2px solid var(--border-strong);flex:none;display:grid;place-items:center}
+.steps li.doing{color:var(--ink)} .steps li.doing i{border-color:var(--brand);border-top-color:transparent;animation:spin .7s linear infinite}
+.steps li.done{color:var(--ink-2)} .steps li.done i{background:var(--brand);border-color:var(--brand)}
+.steps li.done i::after{content:"";width:5px;height:9px;border:solid var(--brand-ink);border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- result ---------- */
+.verdict{padding:22px 18px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;position:relative;overflow:hidden}
+.verdict::before{content:"";position:absolute;inset:0 0 auto;height:6px;background:var(--vc)}
+.verdict .t{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--vc)}
+.verdict h2{margin:0;font-size:24px;font-weight:750;letter-spacing:-.02em;line-height:1.2}
+.verdict p{margin:0;color:var(--muted);font-size:14.5px;max-width:34ch}
+.verdict.Critical{background:var(--crit-soft);border-color:color-mix(in srgb,var(--crit) 40%,var(--border))}
+.verdict.Phishing{background:var(--phish-soft);border-color:color-mix(in srgb,var(--phish) 35%,var(--border))}
+.alertline{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink-2);background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:6px 12px}
+.sec{padding:16px;display:flex;flex-direction:column;gap:12px}
+.sec h3{margin:0;font-size:12px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.meta{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:13.5px}
+.meta dt{color:var(--muted)} .meta dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.hist{display:flex;flex-direction:column}
+.hist button{all:unset;cursor:pointer;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:12px 2px;border-top:1px solid var(--border)}
+.hist button:first-child{border-top:0}
+.hist .l{display:flex;flex-direction:column;min-width:0}
+.hist .l span{font:12.5px var(--mono);color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist .l small{font-size:12px;color:var(--muted)}
+.hist .s{font-weight:700;font-variant-numeric:tabular-nums}
+.errcard{padding:18px;display:flex;flex-direction:column;gap:10px;border-color:color-mix(in srgb,var(--phish) 40%,var(--border))}
+.errcard b{font-size:16px}
+.empty{padding:36px 20px;text-align:center;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:8px}
+.empty .ic{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand)}
+.empty b{color:var(--ink);font-size:16px}
+
+/* ---------- more ---------- */
+.list{display:flex;flex-direction:column}
+.li{display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid var(--border)}
+.li:first-child{border-top:0}
+.li .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand);flex:none}
+.li .tx{display:flex;flex-direction:column;min-width:0;flex:1}
+.li .tx b{font-size:14.5px} .li .tx span{font-size:12.5px;color:var(--muted)}
+.state{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:650}
+.state.on{color:var(--safe-ink)} .state.off{color:var(--muted)}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header><span class="brand">QuishGuard</span><span class="sub">QR phishing check</span></header>
+<div class="app">
+  <header class="bar">
+    <span id="logo"></span>
+    <div class="name"><b>QuishGuard</b><span>QR Security</span></div>
+    <button class="menu-btn" id="menuBtn" aria-label="Menu and connection"><span data-i="menu"></span><span class="d" id="menuDot" hidden></span></button>
+  </header>
 
-  <section class="card" id="start">
-    <label class="btn" for="cam">Scan a QR code</label>
-    <input id="cam" type="file" accept="image/*" capture="environment">
-    <label class="btn ghost" for="gal">Choose a photo</label>
-    <input id="gal" type="file" accept="image/*">
-    <p class="hint">Take a clear photo of the code. The link inside is checked here and is never opened.</p>
+  <div class="banner" id="discBanner" hidden><span>This phone was disconnected from the security portal.</span><button class="btn sm" id="reconnect">Reconnect</button></div>
+
+  <!-- HOME -->
+  <section id="home" class="homewrap fade-up">
+    <svg class="wave" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden="true"><path fill="currentColor" d="M0 120C60 80 110 150 180 120S300 40 400 90V200H0z"/><path fill="currentColor" d="M0 150c70-30 130 20 200-5s140-60 200-25V200H0z"/></svg>
+    <div class="hero">
+      <div class="emblem"><svg width="74" height="84" viewBox="0 0 24 27" aria-hidden="true"><path d="M12 1 2.5 4.6v7.3c0 6.2 4 11.2 9.5 13.3 5.5-2.1 9.5-7.1 9.5-13.3V4.6z" fill="var(--brand)"/><path d="M12 8.2v9.2M7.4 12.8h9.2" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg></div>
+      <h1>Check a QR code<br>before you open it</h1>
+      <p>QuishGuard safely analyzes the destination without opening the link.</p>
+    </div>
+    <div class="cta">
+      <button class="btn primary" id="scanBtn"><span data-i="camera"></span>Scan QR Code</button>
+      <label class="btn outline" for="gal"><span data-i="photo"></span>Choose Photo</label>
+    </div>
+    <div class="features">
+      <div class="feat"><span class="ic" data-i="timer"></span>Fast<br>Analysis</div>
+      <div class="feat"><span class="ic" data-i="cpu"></span>AI Powered<br>Detection</div>
+      <div class="feat"><span class="ic" data-i="lock"></span>Your<br>Privacy</div>
+      <div class="feat"><span class="ic" data-i="shieldcheck"></span>Safe<br>Browsing</div>
+    </div>
   </section>
 
-  <section class="card" id="work" hidden>
-    <img id="preview" alt="Your photo">
-    <div class="busy" id="busy"><span class="spin" aria-hidden="true"></span><span>Checking the code…</span></div>
-    <p class="err" id="err" role="alert" hidden></p>
+  <!-- ANALYSING -->
+  <section id="work" class="page" hidden>
+    <div class="card analyse">
+      <div class="shot"><img id="shot" alt="Your photo"><div class="viewfinder"><i class="vf-c tl"></i><i class="vf-c tr"></i><i class="vf-c bl"></i><i class="vf-c br"></i><div class="laser"></div></div></div>
+      <ol class="steps" id="steps">
+        <li><i></i>Finding the QR code</li><li><i></i>Reading what is inside</li><li><i></i>Checking the link</li><li><i></i>Analyzing the code image</li>
+      </ol>
+      <p class="muted" style="margin:0;font-size:13px">The destination is analyzed without opening it.</p>
+    </div>
   </section>
 
-  <section id="result" class="stack" hidden></section>
+  <!-- ERROR -->
+  <section id="error" class="page" hidden>
+    <div class="card errcard">
+      <b id="errTitle">We could not check this photo</b>
+      <p id="errText" style="margin:0"></p>
+      <ul class="muted" style="margin:0;padding-left:18px;font-size:13.5px">
+        <li>Hold the phone so the code fills most of the frame</li><li>Keep it sharp and avoid reflections</li><li>Only one QR code in the picture</li>
+      </ul>
+    </div>
+  </section>
 
-  <button class="btn ghost" id="again" hidden>Scan another code</button>
+  <!-- RESULT -->
+  <section id="result" class="page" hidden></section>
+
+  <!-- SCANS -->
+  <section id="scans" hidden>
+    <div class="pagetitle"><h1>Your scans</h1><p>Codes checked on this phone.</p></div>
+    <div class="page"><div class="card"><div class="hist" id="scanList" style="padding:4px 14px"></div></div></div>
+  </section>
+
+  <!-- ALERTS -->
+  <section id="alerts" hidden>
+    <div class="pagetitle"><h1>Alerts</h1><p>Phishing and critical codes found on this phone. The security team has been told about each one.</p></div>
+    <div class="page"><div class="card"><div class="hist" id="alertList" style="padding:4px 14px"></div></div></div>
+  </section>
+
+  <!-- MORE -->
+  <section id="more" hidden>
+    <div class="pagetitle"><h1>More</h1><p>Connection and privacy.</p></div>
+    <div class="page">
+      <div class="card list">
+        <div class="li"><span class="ic" data-i="phone"></span><div class="tx"><b id="devName">This phone</b><span>Security portal connection</span></div><span class="state off" id="devState"><span class="live-dot off" id="devDot"></span><span id="devText">Connecting</span></span></div>
+        <div class="li" id="reconnectRow" hidden><span class="ic" data-i="refresh"></span><div class="tx"><b>Reconnect</b><span>Allow this phone to send scans again</span></div><button class="btn sm primary" id="reconnect2">Reconnect</button></div>
+      </div>
+      <div class="card list">
+        <div class="li"><span class="ic" data-i="shield"></span><div class="tx"><b>The link is never opened</b><span>It is read from the code, made safe (hxxps, [.]) and checked on your own QuishGuard server.</span></div></div>
+        <div class="li"><span class="ic" data-i="cpu"></span><div class="tx"><b>Two checks</b><span>A link model looks for phishing patterns, and an image model looks for stickers or edits on the code.</span></div></div>
+        <div class="li"><span class="ic" data-i="bell"></span><div class="tx"><b>Security team alerts</b><span>Phishing and critical codes are sent to the security portal right away.</span></div></div>
+      </div>
+      <div class="card list">
+        <div class="li"><span class="ic" data-i="trash"></span><div class="tx"><b>Clear scan history</b><span>Removes the list from this phone only</span></div><button class="btn sm" id="clearHist">Clear</button></div>
+      </div>
+      <p class="muted" style="margin:4px 4px 0;font-size:12px;text-align:center">QuishGuard · C3 QR phishing detection · SLIIT J26-IT-424</p>
+    </div>
+  </section>
 </div>
 
-<script>
-const KEY = new URLSearchParams(location.search).get("key") || "";
-const $ = id => document.getElementById(id);
-function el(tag, props, ...kids){ const e=document.createElement(tag); if(props) Object.assign(e,props); for(const k of kids) if(k!=null) e.append(k); return e; }
-function withKey(u){ return KEY ? u + (u.includes("?")?"&":"?") + "key=" + encodeURIComponent(KEY) : u; }
+<div class="sticky" id="sticky" hidden><div class="in"><button class="btn primary" id="againBtn"><span data-i="scan"></span>Scan another code</button></div></div>
 
-async function shrink(file){
-  // phone photos are large; 1600 px is plenty and uploads fast
-  const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = URL.createObjectURL(file); });
+<nav class="bnav" aria-label="Main"><div class="in">
+  <button data-tab="home" aria-current="page"><span data-i="home"></span>Home</button>
+  <button data-tab="scans"><span data-i="qr"></span>Scans</button>
+  <button data-tab="alerts"><span data-i="bell"></span>Alerts<span class="cnt" id="alertCnt" hidden></span></button>
+  <button data-tab="more"><span data-i="dots"></span>More</button>
+</div></nav>
+
+<input id="cam" type="file" accept="image/*" capture="environment">
+<input id="gal" type="file" accept="image/*">
+
+<!-- live camera (needs HTTPS) -->
+<div class="cam" id="camView" hidden>
+  <video id="video" playsinline muted autoplay></video>
+  <div class="top">
+    <button class="cambtn" id="camClose" aria-label="Back"><span data-i="back"></span></button>
+    <div class="t"><span id="camLogo"></span><div><b>QuishGuard</b><span>QR Security</span></div></div>
+    <button class="cambtn" id="torch" aria-label="Flashlight" aria-pressed="false" hidden><span data-i="flash"></span></button>
+  </div>
+  <div class="viewfinder" id="vf"><i class="vf-c tl"></i><i class="vf-c tr"></i><i class="vf-c bl"></i><i class="vf-c br"></i><div class="laser"></div></div>
+  <div class="hint">
+    <b><span data-i="camera"></span>Position the QR code inside the frame</b>
+    <small><span data-i="shield"></span>The destination is analyzed without opening it.</small>
+  </div>
+  <div class="ctl">
+    <label class="ghostbtn" for="gal"><span data-i="photo"></span>Photo</label>
+    <button class="shutter" id="shutter" aria-label="Capture and analyze"></button>
+    <span class="autotag" id="autotag" hidden><i></i>Auto scan</span>
+  </div>
+</div>
+
+<script src="/static/ui.js"></script>
+<script>
+const {el, api, icon, logo, ScoreRing, ProgressBar, ReasonCards, HeatmapPanel, Badge, TIER, fmt, fmtTime, KEY, copyText} = QG;
+const $ = id => document.getElementById(id);
+document.querySelectorAll("[data-i]").forEach(n => n.append(icon(n.dataset.i, n.classList.contains("ic") ? 20 : n.closest(".bnav") ? 23 : n.closest(".hint") ? 18 : 22, n.dataset.i === "dots" ? 3.4 : 2)));
+$("logo").append(logo(38)); $("camLogo").append(logo(30));
+
+/* ---- scan history (kept on this phone only) ---- */
+let history = [];
+try{ history = JSON.parse(localStorage.getItem("qg-history") || "[]"); }catch(e){ history = []; }
+function saveHistory(){ try{ localStorage.setItem("qg-history", JSON.stringify(history.slice(0, 30))); }catch(e){} }
+
+/* ---- device heartbeat (so the portal can show this phone as connected) ---- */
+let deviceId = null;
+try{ deviceId = localStorage.getItem("qg-device"); }catch(e){}
+if(!deviceId){ deviceId = "d" + Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-4); try{ localStorage.setItem("qg-device", deviceId); }catch(e){} }
+let connected = true, deviceName = "This phone";
+function setConn(state){           // state: connected | disconnected | offline
+  const on = state === "connected";
+  $("devDot").classList.toggle("off", !on); $("devState").className = "state " + (on ? "on" : "off");
+  $("devText").textContent = on ? "Connected" : state === "disconnected" ? "Disconnected" : "Offline";
+  $("devName").textContent = deviceName;
+  $("discBanner").hidden = state !== "disconnected"; $("reconnectRow").hidden = state !== "disconnected";
+  $("menuDot").hidden = on;
+}
+async function ping(reconnect){
+  try{ const r = await api("/api/devices/ping", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id: deviceId, reconnect: !!reconnect})});
+    connected = r.connected; deviceName = r.name; setConn(connected ? "connected" : "disconnected");
+  }catch(e){ setConn("offline"); }
+}
+ping(); setInterval(ping, 8000);
+$("reconnect").onclick = $("reconnect2").onclick = () => ping(true);
+
+/* ---- navigation ---- */
+let tab = "home", state = "home", stepTimer = null;   // state = home | work | error | result (inside the Home tab)
+function show(){
+  for(const s of ["home", "work", "error", "result"]) $(s).hidden = !(tab === "home" && state === s);
+  for(const s of ["scans", "alerts", "more"]) $(s).hidden = tab !== s;
+  document.querySelectorAll(".bnav button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === tab ? "page" : "false"));
+  const sticky = tab === "home" && (state === "result" || state === "error");
+  $("sticky").hidden = !sticky; document.body.classList.toggle("has-sticky", sticky);
+  window.scrollTo({top: 0, behavior: "smooth"});
+}
+function go(t){ tab = t; if(t === "home" && state === "work") {} if(t === "scans" || t === "alerts") renderLists(); show(); }
+document.querySelectorAll(".bnav button").forEach(b => b.onclick = () => { if(b.dataset.tab === "home" && tab === "home" && state !== "work") state = "home"; go(b.dataset.tab); });
+$("menuBtn").onclick = () => go("more");
+function view(s){ state = s; tab = "home"; show(); }
+function steps(run){
+  const li = [...$("steps").children]; clearInterval(stepTimer);
+  if(!run){ li.forEach(x => x.className = "done"); return; }
+  li.forEach(x => x.className = ""); let i = 0; li[0].className = "doing";
+  stepTimer = setInterval(() => { if(i < li.length - 1){ li[i].className = "done"; li[++i].className = "doing"; } }, 420);
+}
+$("clearHist").onclick = () => { history = []; saveHistory(); renderLists(); };
+
+/* ---- capture ---- */
+const liveCamera = window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+let stream = null, detector = null, detectTimer = null, torchOn = false;
+if("BarcodeDetector" in window){ try{ BarcodeDetector.getSupportedFormats().then(f => { if(f.includes("qr_code")) detector = new BarcodeDetector({formats: ["qr_code"]}); }).catch(() => {}); }catch(e){} }
+async function openCamera(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: "environment"}, width: {ideal: 1920}, height: {ideal: 1080}}, audio: false});
+    $("video").srcObject = stream; $("camView").hidden = false; $("vf").classList.remove("found");
+    const track = stream.getVideoTracks()[0], caps = track.getCapabilities ? track.getCapabilities() : {};
+    $("torch").hidden = !caps.torch; torchOn = false; $("torch").setAttribute("aria-pressed", "false");
+    $("autotag").hidden = !detector;
+    if(detector) autoDetect();
+  }catch(e){ $("cam").click(); }            // no permission: fall back to the phone's camera app
+}
+function autoDetect(){          // only decides WHEN to take the photo; the server does the real check
+  let hits = 0;
+  detectTimer = setInterval(async () => {
+    const v = $("video"); if(!stream || v.readyState < 2) return;
+    try{ const codes = await detector.detect(v); hits = codes.length ? hits + 1 : 0;
+      if(hits >= 2){ $("vf").classList.add("found"); capture(); } }catch(e){}
+  }, 280);
+}
+function closeCamera(){ clearInterval(detectTimer); if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } $("camView").hidden = true; }
+function capture(){
+  const v = $("video"); if(!v.videoWidth) return;
+  const c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0); closeCamera();
+  c.toBlob(b => analyse(b), "image/jpeg", 0.92);
+}
+$("camClose").onclick = closeCamera;
+$("shutter").onclick = capture;
+$("torch").onclick = async () => { try{ torchOn = !torchOn; await stream.getVideoTracks()[0].applyConstraints({advanced: [{torch: torchOn}]});
+  $("torch").setAttribute("aria-pressed", String(torchOn)); $("torch").replaceChildren(icon(torchOn ? "flash" : "flashoff", 22)); }catch(e){} };
+$("scanBtn").onclick = $("againBtn").onclick = () => liveCamera ? openCamera() : $("cam").click();
+$("cam").onchange = e => { if(e.target.files[0]) analyse(e.target.files[0]); e.target.value = ""; };
+$("gal").onchange = e => { closeCamera(); if(e.target.files[0]) analyse(e.target.files[0]); e.target.value = ""; };
+
+async function shrink(blob){
+  const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = URL.createObjectURL(blob); });
   const f = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
-  const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth*f); c.height = Math.round(img.naturalHeight*f);
+  const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * f); c.height = Math.round(img.naturalHeight * f);
   c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
   return await new Promise(ok => c.toBlob(ok, "image/jpeg", 0.92));
 }
-
-async function go(file){
-  if(!file) return;
-  $("start").hidden = true; $("work").hidden = false; $("busy").hidden = false; $("err").hidden = true;
-  $("result").hidden = true; $("again").hidden = true;
-  $("preview").src = URL.createObjectURL(file);
+async function analyse(blob){
+  $("shot").src = URL.createObjectURL(blob); view("work"); steps(true);
   try{
-    const body = await shrink(file);
-    const r = await fetch("/api/scan", {method:"POST", body, headers:{"Content-Type":"image/jpeg","X-QG-Key":KEY,"X-Device":"phone"}});
+    const body = await shrink(blob);
+    const r = await fetch(QG.withKey("/api/scan"), {method: "POST", body, headers: {"Content-Type": "image/jpeg", "X-QG-Key": KEY, "X-Device-Id": deviceId}});
     const data = await r.json().catch(() => ({}));
-    if(!r.ok) throw new Error(data.detail || ("Server error " + r.status));
-    show(data);
-  }catch(e){
-    $("busy").hidden = true; $("err").textContent = "Could not check this photo: " + e.message; $("err").hidden = false; $("again").hidden = false;
-  }
+    if(r.status === 403){ ping(); }
+    if(!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : "The server could not check this photo (" + r.status + ").");
+    steps(false); history.unshift(data); saveHistory(); setTimeout(() => render(data), 220);
+  }catch(e){ clearInterval(stepTimer); $("errText").textContent = e.message; view("error"); }
 }
 
-function show(row){
-  const a = row.result, d = a.decoded || {};
-  $("work").hidden = true;
+/* ---- result ---- */
+function render(row){
+  const a = row.result, d = a.decoded || {}, st = a.streams || {}, t = TIER[a.tier];
   const out = $("result"); out.textContent = "";
-  const alert = row.is_alert;
-  out.append(el("div", {className:"verdict t-"+a.tier},
-    el("span", {className:"tier", textContent:a.tier}),
-    el("span", {className:"score", textContent:"Risk score " + Number(a.score).toFixed(1) + " / 100"})));
-  if(alert) out.append(el("div", {className:"warn", textContent:"Do not open this link. The security team has been alerted."}));
+  const v = el("div", {className: "card verdict fade-up " + a.tier, style: {"--vc": t.color}});
+  v.append(ScoreRing(a.score, a.tier, 148, {label: true}),
+    el("div", {className: "t", textContent: t.title}),
+    el("h2", {textContent: a.tier === "Safe" ? "Score " + fmt(a.score) + " / 100" : t.head}),
+    el("p", {textContent: a.tier === "Safe" ? t.head + " " + t.desc : t.desc}));
+  if(row.is_alert) v.append(el("span", {className: "alertline"}, icon("bell", 14), "Security team alerted"));
+  out.append(v);
 
-  const info = el("dl");
-  info.append(el("dt",{textContent:"What to do"}), el("dd",{textContent:a.recommended_action||""}));
-  info.append(el("dt",{textContent:"Code holds"}), el("dd",{textContent: d.ok ? (d.payload_type||"text") : "could not be read"}));
-  if(a.streams){
-    info.append(el("dt",{textContent:"Link check"}), el("dd",{textContent: a.streams.url==null ? "no link" : Number(a.streams.url).toFixed(1)+" / 100"}));
-    info.append(el("dt",{textContent:"Image check"}), el("dd",{textContent: Number(a.streams.visual).toFixed(1)+" / 100" + (a.visual_tampered?" (looks altered)":"")}));
-  }
-  const card = el("div",{className:"card"}, info);
-  if(d.text_defanged){ card.append(el("h2",{textContent:"Inside the code (made safe, not clickable)"}), el("div",{className:"link",textContent:d.text_defanged})); }
-  if(a.reasons && a.reasons.length){ const ul = el("ul",{className:"reasons"}); for(const t of a.reasons) ul.append(el("li",{textContent:t})); card.append(el("h2",{textContent:"Why"}), ul); }
-  out.append(card);
+  const advisory = a.visual_mode === "advisory";
+  out.append(el("div", {className: "card sec fade-up"}, el("h3", {textContent: "Security checks"}),
+    ProgressBar("Link check", st.url, {tag: a.tranco_rank ? "Popular platform" : null}),
+    ProgressBar("Code image check", st.visual, {tag: advisory ? "Advisory" : (a.visual_tampered ? "Looks altered" : null), muted: advisory})));
 
-  const imgs = el("div",{className:"imgs"});
-  imgs.append(el("figure",null, el("img",{src:withKey(a.photo), alt:"Your photo"}), el("figcaption",{textContent:"Your photo"})));
-  if(a.heatmap) imgs.append(el("figure",null, el("img",{src:withKey(a.heatmap), alt:"Tamper heatmap"}), el("figcaption",{textContent:"Heatmap: red = unusual area"})));
-  out.append(el("div",{className:"card"}, imgs, el("p",{className:"hint",textContent:"Checked in " + Math.round(a.latency_ms||0) + " ms · scan " + row.scan_id})));
-  out.hidden = false; $("again").hidden = false;
-  window.scrollTo({top:0});
+  const inside = el("div", {className: "card sec fade-up"}, el("div", {className: "row"}, el("h3", {textContent: "Inside the QR code"}),
+    el("span", {className: "badge b-brand", textContent: d.ok ? (d.payload_type || "text") : "unreadable"})));
+  if(d.text_defanged){
+    const cp = el("button", {className: "btn sm"}, icon("copy", 14), el("span", {textContent: "Copy safe URL"}));
+    cp.onclick = () => copyText(d.text_defanged, cp);
+    inside.append(el("div", {className: "safelink", textContent: d.text_defanged}),
+      el("div", {className: "row"}, el("span", {className: "muted", style: {fontSize: "12.5px"}, textContent: "Made safe, so it cannot be opened by accident."}), cp));
+  } else inside.append(el("p", {className: "muted", style: {margin: 0}, textContent: d.ok ? "This code holds no web link." : "The code could not be read, so only the image was checked."}));
+  out.append(inside);
+
+  out.append(el("div", {className: "card sec fade-up"}, el("h3", {textContent: a.tier === "Safe" ? "Why this looks safe" : "Why this was flagged"}), ReasonCards(a.reasons, a.tier)));
+  if(a.photo || a.heatmap) out.append(el("div", {className: "card sec fade-up"}, el("h3", {textContent: "QR image analysis"}), HeatmapPanel(a.photo, a.heatmap, advisory)));
+
+  const when = new Date(row.at_utc);
+  out.append(el("div", {className: "card sec fade-up"}, el("h3", {textContent: "Scan details"}),
+    el("dl", {className: "meta"}, el("dt", {textContent: "Scan time"}), el("dd", {textContent: when.toLocaleString()}),
+      el("dt", {textContent: "Processing time"}), el("dd", {textContent: Math.round(a.latency_ms || 0) + " ms"}),
+      el("dt", {textContent: "Device"}), el("dd", {textContent: row.device || deviceName}),
+      el("dt", {textContent: "Scan ID"}), el("dd", {className: "mono", textContent: row.scan_id}))));
+
+  const others = history.filter(r => r.scan_id !== row.scan_id).slice(0, 3);
+  if(others.length){ const h = el("div", {className: "hist"}); fillList(h, others);
+    const all = el("button", {className: "btn sm ghost", textContent: "See all scans"}); all.onclick = () => go("scans");
+    out.append(el("div", {className: "card sec fade-up"}, el("div", {className: "row"}, el("h3", {textContent: "Recent scans"}), all), h)); }
+
+  renderLists(); view("result");
 }
-
-$("cam").addEventListener("change", e => go(e.target.files[0]));
-$("gal").addEventListener("change", e => go(e.target.files[0]));
-$("again").addEventListener("click", () => { $("cam").value=""; $("gal").value=""; $("result").hidden = true; $("work").hidden = true; $("again").hidden = true; $("start").hidden = false; });
+function fillList(box, rows){
+  for(const r of rows){
+    const d = r.result.decoded || {};
+    const b = el("button", {type: "button"}, Badge(r.tier),
+      el("span", {className: "l"}, el("span", {textContent: d.text_defanged || (d.ok ? d.payload_type : "unreadable code")}), el("small", {textContent: fmtTime(r.at_utc)})),
+      el("span", {className: "s", textContent: fmt(r.score, 0)}));
+    b.onclick = () => render(r); box.append(b);
+  }
+}
+function emptyState(iconName, title, text){ return el("div", {className: "empty"}, el("span", {className: "ic"}, icon(iconName, 26)), el("b", {textContent: title}), el("span", {textContent: text})); }
+function renderLists(){
+  const s = $("scanList"), a = $("alertList"); s.textContent = ""; a.textContent = "";
+  if(history.length) fillList(s, history); else s.append(emptyState("qr", "No scans yet", "Scan a QR code and it will appear here."));
+  const al = history.filter(r => r.is_alert);
+  if(al.length) fillList(a, al); else a.append(emptyState("shieldcheck", "No alerts", "No phishing QR codes found on this phone."));
+  $("alertCnt").hidden = !al.length; $("alertCnt").textContent = al.length > 99 ? "99+" : al.length;
+}
+renderLists(); view("home");
 </script>
 </body>
 </html>
