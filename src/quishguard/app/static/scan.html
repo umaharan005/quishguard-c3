@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>QuishGuard Scan</title>
+<style>
+:root{
+  --bg:#F3F5F2; --surface:#FFFFFF; --sunk:#E8ECE7; --ink:#15201B; --muted:#56635C; --line:#CBD3CD;
+  --accent:#17665A; --accent-ink:#FFFFFF;
+  --safe:#2F7D4F; --susp:#A87A00; --phish:#C0571A; --crit:#AE2A22;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --mono:ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0F1512;--surface:#161E1A;--sunk:#1D2722;--ink:#E4EBE6;--muted:#9AA8A0;--line:#2F3B35;
+        --accent:#5CC2AE;--accent-ink:#0F1512;--safe:#5FBF83;--susp:#E0B437;--phish:#EE8A4F;--crit:#F0736A}
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);
+     padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+.wrap{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;justify-content:space-between;align-items:baseline}
+.brand{font-weight:800;font-size:20px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;min-height:56px;border-radius:10px;border:0;
+     background:var(--accent);color:var(--accent-ink);font:600 17px var(--body);cursor:pointer;width:100%}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);min-height:48px;font-size:15px}
+.btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.hint{color:var(--muted);font-size:14px;margin:0}
+#preview{width:100%;max-height:280px;object-fit:contain;border-radius:8px;background:var(--sunk)}
+.busy{display:flex;align-items:center;gap:12px;color:var(--muted)}
+.spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 0.8s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.verdict{border-radius:10px;padding:16px;color:#fff;display:flex;flex-direction:column;gap:4px}
+.verdict .tier{font-size:28px;font-weight:800;line-height:1.1}
+.verdict .score{font-variant-numeric:tabular-nums;font-size:15px;opacity:.95}
+.t-Safe{background:var(--safe)} .t-Suspicious{background:var(--susp)} .t-Phishing{background:var(--phish)} .t-Critical{background:var(--crit)}
+@media (prefers-color-scheme: dark){.verdict{color:#0F1512}}
+.warn{border-left:4px solid var(--crit);padding:8px 12px;background:var(--sunk);border-radius:0 6px 6px 0;font-size:14px;font-weight:600}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px}
+dt{color:var(--muted)} dd{margin:0;overflow-wrap:anywhere}
+.link{font-family:var(--mono);font-size:13px;background:var(--sunk);padding:8px 10px;border-radius:6px;overflow-wrap:anywhere;user-select:all}
+ul.reasons{margin:0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:4px}
+.imgs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.imgs figure{margin:0;display:flex;flex-direction:column;gap:4px}
+.imgs img{width:100%;aspect-ratio:1;object-fit:contain;background:var(--sunk);border-radius:6px}
+.imgs figcaption{font-size:12px;color:var(--muted)}
+.err{color:var(--crit);font-weight:600}
+h2{font-size:15px;margin:0}
+.stack{display:flex;flex-direction:column;gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><span class="brand">QuishGuard</span><span class="sub">QR phishing check</span></header>
+
+  <section class="card" id="start">
+    <label class="btn" for="cam">Scan a QR code</label>
+    <input id="cam" type="file" accept="image/*" capture="environment">
+    <label class="btn ghost" for="gal">Choose a photo</label>
+    <input id="gal" type="file" accept="image/*">
+    <p class="hint">Take a clear photo of the code. The link inside is checked here and is never opened.</p>
+  </section>
+
+  <section class="card" id="work" hidden>
+    <img id="preview" alt="Your photo">
+    <div class="busy" id="busy"><span class="spin" aria-hidden="true"></span><span>Checking the code…</span></div>
+    <p class="err" id="err" role="alert" hidden></p>
+  </section>
+
+  <section id="result" class="stack" hidden></section>
+
+  <button class="btn ghost" id="again" hidden>Scan another code</button>
+</div>
+
+<script>
+const KEY = new URLSearchParams(location.search).get("key") || "";
+const $ = id => document.getElementById(id);
+function el(tag, props, ...kids){ const e=document.createElement(tag); if(props) Object.assign(e,props); for(const k of kids) if(k!=null) e.append(k); return e; }
+function withKey(u){ return KEY ? u + (u.includes("?")?"&":"?") + "key=" + encodeURIComponent(KEY) : u; }
+
+async function shrink(file){
+  // phone photos are large; 1600 px is plenty and uploads fast
+  const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = URL.createObjectURL(file); });
+  const f = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth*f); c.height = Math.round(img.naturalHeight*f);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return await new Promise(ok => c.toBlob(ok, "image/jpeg", 0.92));
+}
+
+async function go(file){
+  if(!file) return;
+  $("start").hidden = true; $("work").hidden = false; $("busy").hidden = false; $("err").hidden = true;
+  $("result").hidden = true; $("again").hidden = true;
+  $("preview").src = URL.createObjectURL(file);
+  try{
+    const body = await shrink(file);
+    const r = await fetch("/api/scan", {method:"POST", body, headers:{"Content-Type":"image/jpeg","X-QG-Key":KEY,"X-Device":"phone"}});
+    const data = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(data.detail || ("Server error " + r.status));
+    show(data);
+  }catch(e){
+    $("busy").hidden = true; $("err").textContent = "Could not check this photo: " + e.message; $("err").hidden = false; $("again").hidden = false;
+  }
+}
+
+function show(row){
+  const a = row.result, d = a.decoded || {};
+  $("work").hidden = true;
+  const out = $("result"); out.textContent = "";
+  const alert = row.is_alert;
+  out.append(el("div", {className:"verdict t-"+a.tier},
+    el("span", {className:"tier", textContent:a.tier}),
+    el("span", {className:"score", textContent:"Risk score " + Number(a.score).toFixed(1) + " / 100"})));
+  if(alert) out.append(el("div", {className:"warn", textContent:"Do not open this link. The security team has been alerted."}));
+
+  const info = el("dl");
+  info.append(el("dt",{textContent:"What to do"}), el("dd",{textContent:a.recommended_action||""}));
+  info.append(el("dt",{textContent:"Code holds"}), el("dd",{textContent: d.ok ? (d.payload_type||"text") : "could not be read"}));
+  if(a.streams){
+    info.append(el("dt",{textContent:"Link check"}), el("dd",{textContent: a.streams.url==null ? "no link" : Number(a.streams.url).toFixed(1)+" / 100"}));
+    info.append(el("dt",{textContent:"Image check"}), el("dd",{textContent: Number(a.streams.visual).toFixed(1)+" / 100" + (a.visual_tampered?" (looks altered)":"")}));
+  }
+  const card = el("div",{className:"card"}, info);
+  if(d.text_defanged){ card.append(el("h2",{textContent:"Inside the code (made safe, not clickable)"}), el("div",{className:"link",textContent:d.text_defanged})); }
+  if(a.reasons && a.reasons.length){ const ul = el("ul",{className:"reasons"}); for(const t of a.reasons) ul.append(el("li",{textContent:t})); card.append(el("h2",{textContent:"Why"}), ul); }
+  out.append(card);
+
+  const imgs = el("div",{className:"imgs"});
+  imgs.append(el("figure",null, el("img",{src:withKey(a.photo), alt:"Your photo"}), el("figcaption",{textContent:"Your photo"})));
+  if(a.heatmap) imgs.append(el("figure",null, el("img",{src:withKey(a.heatmap), alt:"Tamper heatmap"}), el("figcaption",{textContent:"Heatmap: red = unusual area"})));
+  out.append(el("div",{className:"card"}, imgs, el("p",{className:"hint",textContent:"Checked in " + Math.round(a.latency_ms||0) + " ms · scan " + row.scan_id})));
+  out.hidden = false; $("again").hidden = false;
+  window.scrollTo({top:0});
+}
+
+$("cam").addEventListener("change", e => go(e.target.files[0]));
+$("gal").addEventListener("change", e => go(e.target.files[0]));
+$("again").addEventListener("click", () => { $("cam").value=""; $("gal").value=""; $("result").hidden = true; $("work").hidden = true; $("again").hidden = true; $("start").hidden = false; });
+</script>
+</body>
+</html>

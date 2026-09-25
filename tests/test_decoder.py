@@ -70,3 +70,23 @@ def test_opencv_internal_error_is_treated_as_unreadable(monkeypatch):
     monkeypatch.setattr(cv2, "QRCodeDetector", lambda: Boom())
     r = decode(np.full((120, 120), 255, np.uint8))
     assert not r.ok
+
+
+def test_locate_cuts_code_out_of_a_photo():
+    from quishguard.decode.decoder import downscale, locate
+    qr = make_qr("https://www.sliit.lk/", scale=8)
+    qr = cv2.copyMakeBorder(qr, 32, 32, 32, 32, cv2.BORDER_CONSTANT, value=255)   # printed quiet zone
+    photo = np.full((1800, 2400), 120, np.uint8)                                   # grey table
+    cv2.putText(photo, "MENU", (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 8, 30, 20)    # clutter
+    h, w = qr.shape
+    src = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
+    dst = np.float32([[900, 600], [1500, 650], [1480, 1250], [880, 1200]])        # slight tilt
+    warped = cv2.warpPerspective(qr, cv2.getPerspectiveTransform(src, dst), (2400, 1800), borderValue=0)
+    mask = cv2.warpPerspective(np.full_like(qr, 255), cv2.getPerspectiveTransform(src, dst), (2400, 1800))
+    photo = np.where(mask > 0, warped, photo).astype(np.uint8)
+    r = decode(downscale(photo))
+    assert r.ok and r.text == "https://www.sliit.lk/"
+    crop = locate(r)
+    assert crop is not None and crop.shape == (448, 448)
+    assert decode(crop).text == "https://www.sliit.lk/"      # the crop is the code, straightened
+    assert (crop[:30] > 200).mean() > 0.9                     # border is white, not the table

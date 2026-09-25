@@ -143,3 +143,46 @@ def rectify(result: DecodeResult, size: int = 224, margin: float = 0.06) -> Opti
     dst = np.array([[m, m], [size - m, m], [size - m, size - m], [m, size - m]], dtype=np.float32)
     H = cv2.getPerspectiveTransform(src, dst)
     return cv2.warpPerspective(result.image, H, (size, size), flags=cv2.INTER_AREA, borderValue=255)
+
+
+def _order_corners(pts: np.ndarray) -> np.ndarray:
+    """Top-left, top-right, bottom-right, bottom-left (any decoder's order in)."""
+    pts = np.asarray(pts, dtype=np.float32).reshape(4, 2)
+    s, d = pts.sum(1), np.diff(pts, axis=1).ravel()
+    return np.array([pts[np.argmin(s)], pts[np.argmin(d)], pts[np.argmax(s)], pts[np.argmax(d)]], dtype=np.float32)
+
+
+def locate(result: DecodeResult, size: int = 448, margin: float = 0.10) -> Optional[np.ndarray]:
+    """Cut the QR code out of a larger photo (for the visual model).
+
+    Phone photos contain a table, a wall, a hand... that the visual model never
+    saw in training. This warps the code to a straight square with a 10% border,
+    so a sticker that spills slightly past the code is still inside the crop.
+    Uses the decoder's corners; if the code could not be decoded, tries OpenCV's
+    detector alone (it can often find a code it cannot read). None = not found.
+    """
+    if result.image is None:
+        return None
+    pts = result.corners
+    if pts is None or len(pts) != 4:
+        try:
+            found, p = cv2.QRCodeDetector().detect(result.image)
+        except cv2.error:
+            found, p = False, None
+        if not found or p is None:
+            return None
+        pts = p.reshape(-1, 2)
+    src = _order_corners(pts)
+    if cv2.contourArea(src) < 400:        # too small to be a real detection
+        return None
+    m = size * margin
+    dst = np.array([[m, m], [size - m, m], [size - m, size - m], [m, size - m]], dtype=np.float32)
+    H = cv2.getPerspectiveTransform(src, dst)
+    return cv2.warpPerspective(result.image, H, (size, size), flags=cv2.INTER_AREA, borderValue=255)
+
+
+def downscale(gray: np.ndarray, max_side: int = 1600) -> np.ndarray:
+    """Phone photos are 3000-4000 px; decoding and scoring do not need that."""
+    h, w = gray.shape[:2]
+    f = max_side / max(h, w)
+    return gray if f >= 1 else cv2.resize(gray, None, fx=f, fy=f, interpolation=cv2.INTER_AREA)

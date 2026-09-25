@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from quishguard import config
-from quishguard.decode.decoder import ImageLike, decode
+from quishguard.decode.decoder import ImageLike, decode, downscale, locate, to_gray
 from quishguard.fusion.scoring import ACTIONS, TAMPER_FLOOR, W_URL, fuse
 
 
@@ -30,17 +30,30 @@ class QuishGuard:
         self.visual = VisualScorer(visual_arch, models_dir, device=device)
         self.w_url, self.tamper_floor = w_url, tamper_floor
 
-    def scan(self, img: ImageLike, heatmap_path: Path | str | None = None, explain: bool = True) -> dict:
+    def scan(self, img: ImageLike, heatmap_path: Path | str | None = None, explain: bool = True,
+             photo: bool = False) -> dict:
+        """photo=True for real camera photos: shrink the photo, find the code in it and
+        give the visual model only the code (not the table or wall around it)."""
         t0 = time.perf_counter()
+        located = None
+        if photo:
+            img = downscale(to_gray(img))
         d = decode(img)
+        if photo:
+            located = locate(d)
+            vis_img = located if located is not None else img
+        else:
+            vis_img = img
         url_res = None
         if d.ok and d.payload_type == "url":
             url_res = self.url.score(d.text, explain=explain)
-        vis = self.visual.score(img)
+        vis = self.visual.score(vis_img)
         f = fuse(url_res["url_score"] if url_res else None, vis["visual_score"], self.w_url, self.tamper_floor)
 
         reasons = []
-        if not d.ok:
+        if photo and located is None:
+            reasons.append("No QR code was found in the photo; the whole photo was checked.")
+        elif not d.ok:
             reasons.append("The QR code could not be read normally (damaged or altered).")
         if url_res:
             reasons += [f"Link: {r['text']} = {r['value']} ({r['effect']})" for r in url_res.get("reasons", [])[:3]]
@@ -51,7 +64,7 @@ class QuishGuard:
 
         if heatmap_path is not None:
             import cv2
-            cv2.imwrite(str(heatmap_path), self.visual.heatmap_image(img, vis))
+            cv2.imwrite(str(heatmap_path), self.visual.heatmap_image(vis_img, vis))
 
         return {
             "component": "QR",

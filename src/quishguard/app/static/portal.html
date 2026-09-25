@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuishGuard Alert Portal</title>
+<style>
+:root{
+  --bg:#F3F5F2; --surface:#FFFFFF; --sunk:#E8ECE7; --ink:#15201B; --muted:#56635C; --line:#CBD3CD;
+  --accent:#17665A; --accent-ink:#FFFFFF; --sel:#D5E8E3;
+  --safe:#2F7D4F; --susp:#A87A00; --phish:#C0571A; --crit:#AE2A22;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --mono:ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0F1512;--surface:#161E1A;--sunk:#1D2722;--ink:#E4EBE6;--muted:#9AA8A0;--line:#2F3B35;
+        --accent:#5CC2AE;--accent-ink:#0F1512;--sel:#1D3A34;--safe:#5FBF83;--susp:#E0B437;--phish:#EE8A4F;--crit:#F0736A}
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--body);padding:16px}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
+h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em}
+h1 small{font-weight:500;color:var(--muted);font-size:14px;margin-left:8px}
+.live{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--safe)}
+.dot.off{background:var(--crit)}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{font:600 13px var(--body);border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 12px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button[aria-pressed="true"]{background:var(--sel);border-color:var(--accent)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.tile span{color:var(--muted);font-size:12px}
+.tile b{font-size:24px;font-variant-numeric:tabular-nums;line-height:1.2}
+.tile.alert{border-color:var(--crit);border-width:2px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px}
+.chip i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.c-Safe{background:var(--safe)} .c-Suspicious{background:var(--susp)} .c-Phishing{background:var(--phish)} .c-Critical{background:var(--crit)}
+#toasts{position:fixed;right:16px;top:16px;display:flex;flex-direction:column;gap:8px;z-index:10;max-width:min(420px,calc(100vw - 32px))}
+.toast{background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--crit);border-radius:8px;padding:10px 12px;
+       box-shadow:0 6px 20px rgba(0,0,0,.18);cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.toast.t-Phishing{border-left-color:var(--phish)}
+.toast b{font-size:14px} .toast span{font:12px var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:980px){.main{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.panel-h{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--sunk);gap:8px;flex-wrap:wrap}
+.panel-h h2{margin:0;font-size:14px}
+.tbl{overflow-x:auto;max-height:70vh;overflow-y:auto}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);position:sticky;top:0;background:var(--surface)}
+td.nw{white-space:nowrap}
+td.num{font-variant-numeric:tabular-nums;text-align:right} th.num{text-align:right}
+td.link{font:12px var(--mono);max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--sunk)}
+tbody tr.sel{background:var(--sel)}
+tbody tr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.status-new{color:var(--crit);font-weight:700}
+.status-acknowledged{color:var(--muted)}
+.empty{padding:24px;color:var(--muted);text-align:center}
+.detail{padding:14px;display:flex;flex-direction:column;gap:12px}
+.verdict{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border-radius:8px;padding:12px 14px;color:#fff}
+.verdict b{font-size:22px} .verdict span{font-variant-numeric:tabular-nums}
+@media (prefers-color-scheme: dark){.verdict{color:#0F1512}}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+dt{color:var(--muted)} dd{margin:0;overflow-wrap:anywhere}
+.mono{font:12.5px var(--mono);background:var(--sunk);padding:8px 10px;border-radius:6px;overflow-wrap:anywhere;user-select:all}
+.imgs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.imgs figure{margin:0;display:flex;flex-direction:column;gap:4px}
+.imgs img{width:100%;aspect-ratio:1;object-fit:contain;background:var(--sunk);border-radius:6px}
+.imgs figcaption{font-size:12px;color:var(--muted)}
+ul{margin:0;padding-left:18px}
+details pre{margin:6px 0 0;font:12px var(--mono);background:var(--sunk);padding:10px;border-radius:6px;overflow:auto;max-height:260px}
+.note{font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="toasts" aria-live="assertive"></div>
+<div class="wrap">
+  <header>
+    <h1>QuishGuard <small>QR phishing alert portal · C3</small></h1>
+    <div class="tools">
+      <span class="live"><span class="dot" id="dot"></span><span id="liveText">Connecting…</span></span>
+      <button id="sound" aria-pressed="false">Sound off</button>
+    </div>
+  </header>
+
+  <div class="tiles">
+    <div class="tile"><span>Total scans</span><b id="sTotal">0</b></div>
+    <div class="tile alert"><span>Open alerts</span><b id="sOpen">0</b></div>
+    <div class="tile"><span class="chip"><i class="c-Safe"></i>Safe</span><b id="sSafe">0</b></div>
+    <div class="tile"><span class="chip"><i class="c-Suspicious"></i>Suspicious</span><b id="sSuspicious">0</b></div>
+    <div class="tile"><span class="chip"><i class="c-Phishing"></i>Phishing</span><b id="sPhishing">0</b></div>
+    <div class="tile"><span class="chip"><i class="c-Critical"></i>Critical</span><b id="sCritical">0</b></div>
+  </div>
+
+  <div class="main">
+    <section class="panel">
+      <div class="panel-h">
+        <h2>Scans</h2>
+        <div class="tools">
+          <button id="fAll" aria-pressed="true">All</button>
+          <button id="fAlerts" aria-pressed="false">Alerts only</button>
+        </div>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Time</th><th>Tier</th><th class="num">Score</th><th class="num">Link</th><th class="num">Image</th><th>Inside the code (made safe)</th><th>Status</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty" id="empty">No scans yet. Open the scan page on your phone and scan a QR code.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h"><h2>Alert detail</h2></div>
+      <div class="detail" id="detail"><p class="note">Select a scan to see its alert.</p></div>
+    </section>
+  </div>
+  <p class="note">Links are shown defanged (hxxps://example[.]com) and are never opened by this portal. Refreshes every 2 seconds.</p>
+</div>
+
+<script>
+const KEY = new URLSearchParams(location.search).get("key") || "";
+const $ = id => document.getElementById(id);
+function el(tag, props, ...kids){ const e=document.createElement(tag); if(props) Object.assign(e,props); for(const k of kids) if(k!=null) e.append(k); return e; }
+function withKey(u){ return KEY ? u + (u.includes("?")?"&":"?") + "key=" + encodeURIComponent(KEY) : u; }
+async function api(path, opts={}){
+  const r = await fetch(withKey(path), {...opts, headers:{"X-QG-Key":KEY, ...(opts.headers||{})}});
+  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.status);
+  return r.json();
+}
+
+const scans = new Map();   // seq -> row
+let lastSeq = 0, selected = null, alertsOnly = false, first = true, soundOn = false, audio = null;
+
+function fmtTime(iso){ const d = new Date(iso); return d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}) + (d.toDateString()!==new Date().toDateString() ? " · " + d.toLocaleDateString() : ""); }
+function chip(tier){ return el("span",{className:"chip"}, el("i",{className:"c-"+tier}), tier); }
+function num(v){ return v==null ? "–" : Number(v).toFixed(1); }
+
+function beep(tier){
+  if(!soundOn) return;
+  try{
+    audio = audio || new (window.AudioContext||window.webkitAudioContext)();
+    const tones = tier === "Critical" ? [880, 660, 880] : [740, 740];
+    tones.forEach((f,i) => {
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = f; o.connect(g); g.connect(audio.destination);
+      const t = audio.currentTime + i*0.22; g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.18);
+      o.start(t); o.stop(t+0.2);
+    });
+  }catch(e){}
+}
+
+function toast(row){
+  const a = row.result, d = a.decoded||{};
+  const t = el("div",{className:"toast t-"+row.tier, tabIndex:0, role:"button"},
+    el("b",{textContent:"New " + row.tier.toUpperCase() + " alert · score " + num(row.score)}),
+    el("span",{textContent:(d.text_defanged || (d.ok ? d.payload_type : "unreadable code")) + " · " + fmtTime(row.at_utc)}));
+  const open = () => { select(row.seq); t.remove(); };
+  t.addEventListener("click", open); t.addEventListener("keydown", e => { if(e.key==="Enter") open(); });
+  $("toasts").prepend(t);
+  setTimeout(() => t.remove(), 15000);
+}
+
+function renderRows(){
+  const tb = $("rows"); tb.textContent = "";
+  const list = [...scans.values()].sort((a,b) => b.seq - a.seq).filter(r => !alertsOnly || r.is_alert);
+  $("empty").hidden = list.length > 0;
+  for(const r of list){
+    const a = r.result, d = a.decoded||{}, s = a.streams||{};
+    const status = r.status === "new" ? el("span",{className:"status-new",textContent:"New alert"})
+                 : r.status === "acknowledged" ? el("span",{className:"status-acknowledged",textContent:"Acknowledged"}) : "–";
+    const tr = el("tr",{tabIndex:0},
+      el("td",{className:"nw",textContent:fmtTime(r.at_utc)}), el("td",null,chip(r.tier)), el("td",{className:"num",textContent:num(r.score)}),
+      el("td",{className:"num",textContent:num(s.url)}), el("td",{className:"num",textContent:num(s.visual)}),
+      el("td",{className:"link",title:d.text_defanged||"",textContent: d.text_defanged || (d.ok ? "("+d.payload_type+")" : "(could not read)")}),
+      el("td",{className:"nw"},status));
+    if(r.seq === selected) tr.classList.add("sel");
+    tr.addEventListener("click", () => select(r.seq));
+    tr.addEventListener("keydown", e => { if(e.key==="Enter") select(r.seq); });
+    tb.append(tr);
+  }
+}
+
+function select(seq){ selected = seq; renderRows(); renderDetail(); }
+
+function renderDetail(){
+  const box = $("detail"); box.textContent = "";
+  const r = scans.get(selected); if(!r){ box.append(el("p",{className:"note",textContent:"Select a scan to see its alert."})); return; }
+  const a = r.result, d = a.decoded||{}, s = a.streams||{};
+  box.append(el("div",{className:"verdict c-"+r.tier}, el("b",{textContent:r.tier}), el("span",{textContent:"Score " + num(r.score) + " / 100"})));
+  const dl = el("dl");
+  const add = (k,v) => dl.append(el("dt",{textContent:k}), el("dd",{textContent:v}));
+  add("Time", fmtTime(r.at_utc)); add("Scan", r.scan_id + (r.device ? " · " + r.device : ""));
+  add("Action", a.recommended_action || ""); add("Rule", a.fusion_rule || "");
+  add("Link score", num(s.url)); add("Image score", num(s.visual) + (a.visual_tampered ? " (tampering found)" : ""));
+  add("Payload", d.ok ? d.payload_type : "could not be read");
+  box.append(dl);
+  if(d.text_defanged) box.append(el("div",{className:"mono",textContent:d.text_defanged}));
+  if(a.reasons && a.reasons.length){ const ul = el("ul"); for(const t of a.reasons) ul.append(el("li",{textContent:t})); box.append(ul); }
+  const imgs = el("div",{className:"imgs"});
+  if(a.photo) imgs.append(el("figure",null, el("img",{src:withKey(a.photo),alt:"Scanned photo"}), el("figcaption",{textContent:"Scanned photo"})));
+  if(a.heatmap) imgs.append(el("figure",null, el("img",{src:withKey(a.heatmap),alt:"Tamper heatmap"}), el("figcaption",{textContent:"Tamper heatmap (red = unusual)"})));
+  box.append(imgs);
+  if(r.status === "new"){
+    const b = el("button",{className:"primary",textContent:"Acknowledge alert"});
+    b.addEventListener("click", async () => { try{ const u = await api("/api/scans/"+r.seq+"/ack",{method:"POST"}); scans.set(u.seq,u); renderRows(); renderDetail(); refreshStats(); }catch(e){ b.textContent = "Could not acknowledge: " + e.message; } });
+    box.append(b);
+  }
+  const json = el("pre",{textContent:JSON.stringify(a, null, 2)});
+  box.append(el("details",null, el("summary",{textContent:"Alert JSON (for the group aggregator)"}), json));
+}
+
+async function refreshStats(){
+  const st = await api("/api/stats");
+  $("sTotal").textContent = st.total; $("sOpen").textContent = st.open_alerts;
+  for(const t of ["Safe","Suspicious","Phishing","Critical"]) $("s"+t).textContent = st.tiers[t];
+  document.title = (st.open_alerts ? "(" + st.open_alerts + ") " : "") + "QuishGuard Alert Portal";
+}
+
+async function poll(){
+  try{
+    const fresh = await api("/api/scans?since=" + lastSeq + "&limit=" + (first ? 200 : 100));
+    fresh.sort((a,b) => a.seq - b.seq);
+    for(const r of fresh){
+      scans.set(r.seq, r); lastSeq = Math.max(lastSeq, r.seq);
+      if(!first && r.is_alert){ toast(r); beep(r.tier); }
+      if(!first && selected == null) selected = r.seq;
+    }
+    if(fresh.length || first) renderRows();
+    if(fresh.length && !first) renderDetail();
+    await refreshStats();
+    first = false;
+    $("dot").classList.remove("off"); $("liveText").textContent = "Live";
+  }catch(e){
+    $("dot").classList.add("off"); $("liveText").textContent = "Server not reachable (" + e.message + ")";
+  }
+  setTimeout(poll, 2000);
+}
+
+$("sound").addEventListener("click", e => {
+  soundOn = !soundOn; e.currentTarget.setAttribute("aria-pressed", soundOn); e.currentTarget.textContent = soundOn ? "Sound on" : "Sound off";
+  if(soundOn){ beep("Phishing"); }
+});
+for(const [id, only] of [["fAll",false],["fAlerts",true]]){
+  $(id).addEventListener("click", () => { alertsOnly = only; $("fAll").setAttribute("aria-pressed", !only); $("fAlerts").setAttribute("aria-pressed", only); renderRows(); });
+}
+poll();
+</script>
+</body>
+</html>
